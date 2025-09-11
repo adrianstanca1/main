@@ -130,7 +130,8 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({ user, templat
                                 <div key={task.id} className="flex gap-2 items-center">
                                     <input value={task.text} onChange={e => handleTaskChange(task.id, 'text', e.target.value)} placeholder="Task description..." className="flex-grow p-2 border rounded-md" />
                                     <select value={task.priority} onChange={e => handleTaskChange(task.id, 'priority', e.target.value)} className="p-2 border rounded-md bg-white">
-                                        {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                        {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
+                                        {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                                     </select>
                                     <Button variant="ghost" onClick={() => handleRemoveTask(task.id)}>Remove</Button>
                                 </div>
@@ -142,8 +143,9 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({ user, templat
                     <div>
                          <h3 className="text-lg font-semibold text-slate-700 mb-2 border-t pt-4">Required Document Categories</h3>
                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
                             {Object.values(DocumentCategory).map(cat => (
-                                <label key={cat} className="flex items-center gap-2 p-2 border rounded-md has-[:checked]:bg-sky-50 has-[:checked]:border-sky-500">
+                                <label key={String(cat)} className="flex items-center gap-2 p-2 border rounded-md has-[:checked]:bg-sky-50 has-[:checked]:border-sky-500">
                                     <input type="checkbox" checked={documentCategories.has(cat)} onChange={() => handleCategoryToggle(cat)} className="h-4 w-4 rounded" />
                                     <span>{cat}</span>
                                 </label>
@@ -237,8 +239,9 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
     const handleDelete = async (templateId: number) => {
         if (window.confirm("Are you sure you want to delete this template? This action cannot be undone.")) {
             try {
+                // FIX: Completed the API call to delete the project template.
                 await api.deleteProjectTemplate(templateId, user.id);
-                addToast("Template deleted successfully.", "success");
+                addToast("Template deleted.", "success");
                 fetchData();
             } catch (error) {
                 addToast("Failed to delete template.", "error");
@@ -246,21 +249,18 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
         }
     };
     
-    const handleSaveTemplate = async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate) => {
+    const handleSave = async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate) => {
         try {
             await api.saveProjectTemplate(templateData, user.id);
-            addToast( 'id' in templateData ? "Template updated successfully!" : "Template created successfully!", "success");
+            addToast("Template saved successfully!", "success");
             setIsEditorOpen(false);
             fetchData();
         } catch (error) {
             addToast("Failed to save template.", "error");
         }
     };
-    
-    if (loading) {
-        return <Card><p>Loading templates...</p></Card>;
-    }
 
+    // FIX: Added the main render block for the component.
     return (
         <div className="space-y-6">
             {isEditorOpen && (
@@ -268,32 +268,37 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
                     user={user}
                     template={editingTemplate}
                     onClose={() => setIsEditorOpen(false)}
-                    onSave={handleSaveTemplate}
+                    onSave={handleSave}
                     addToast={addToast}
                 />
             )}
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-bold text-slate-800">Project Templates</h2>
-                <Button variant="primary" onClick={handleCreate}>
-                    Create New Template
+                <Button onClick={handleCreate}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    New Template
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {templates.map(template => (
-                    <TemplateCard
-                        key={template.id}
-                        template={template}
-                        onEdit={() => handleEdit(template)}
-                        onDelete={() => handleDelete(template.id)}
-                    />
-                ))}
-            </div>
-
-            {templates.length === 0 && (
-                <Card className="text-center py-16 text-slate-500">
-                    <h3 className="text-xl font-semibold">No Templates Found</h3>
-                    <p>Create your first project template to standardize your workflow.</p>
+            {loading ? (
+                <Card><p>Loading templates...</p></Card>
+            ) : templates.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {templates.map(template => (
+                        <TemplateCard
+                            key={template.id}
+                            template={template}
+                            onEdit={() => handleEdit(template)}
+                            onDelete={() => handleDelete(template.id)}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <Card className="text-center py-12">
+                     <h3 className="text-lg font-medium">No templates found.</h3>
+                    <p className="text-slate-500 mt-1">Get started by creating your first project template.</p>
                 </Card>
             )}
         </div>

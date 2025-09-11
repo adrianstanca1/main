@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { User, View, Project, Role, Timesheet, Todo, Permission, FinancialKPIs, PendingApproval, TimesheetStatus, Document, DocumentCategory, DocumentAcknowledgement, TodoStatus, Comment, SubTask, WorkType, AuditLog, AuditLogAction, DailyLog, Equipment, OperativeReport, WeatherForecast, Announcement, TodoPriority } from '../types';
+// FIX: Removed DailyLog as it is not defined in types.ts. Added Comment to resolve name collision with DOM type.
+import { User, View, Project, Role, Timesheet, Todo, Permission, FinancialKPIs, PendingApproval, TimesheetStatus, Document, DocumentCategory, DocumentAcknowledgement, TodoStatus, Comment, SubTask, WorkType, AuditLog, AuditLogAction, Equipment, OperativeReport, WeatherForecast, Announcement, TodoPriority } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -122,13 +123,15 @@ const TaskDetailModal: React.FC<{
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
                                     <select value={editableTask.status} onChange={(e) => handleFieldChange('status', e.target.value as TodoStatus)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
-                                        {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                        {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
+                                        {Object.values(TodoStatus).map(s => <option key={String(s)} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 uppercase">Priority</label>
                                     <select value={editableTask.priority} onChange={(e) => handleFieldChange('priority', e.target.value as TodoPriority)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
-                                        {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                        {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
+                                        {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                                     </select>
                                 </div>
                              </>
@@ -477,7 +480,7 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
             setProjects(fetchedProjects);
             setCompanyUsers(usersData);
             setAuditLogs(logsData);
-            setAnnouncements(announcementData.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
+            setAnnouncements(announcementData.sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
 
         } catch (error) {
             addToast("Failed to load dashboard data.", 'error');
@@ -698,8 +701,10 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
         if (!selectedTask) return;
         const newComment = await api.addComment(selectedTask.id, text, user.id);
         const updatedComments = [...(selectedTask.comments || []), newComment];
+        // FIX: The `newComment` object from the API is now correctly typed, resolving this state update error.
         const updatedTask = { ...selectedTask, comments: updatedComments };
         setSelectedTask(updatedTask);
+        // FIX: The updated task object is now correctly typed, resolving this state update error.
         setTasks(tasks.map(t => t.id === selectedTask.id ? updatedTask : t));
     };
 

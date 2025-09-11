@@ -40,8 +40,6 @@ const CreateTaskModal: React.FC<{
                 dueDate: dueDate ? new Date(dueDate) : undefined,
             });
         } finally {
-            // onAddTask in the parent handles closing the modal on success.
-            // We set saving to false here to stop the spinner if there's an error.
             setIsSaving(false);
         }
     };
@@ -185,15 +183,23 @@ const TaskDetailModal: React.FC<{
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
             <Card className="w-full max-w-lg h-auto max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-start mb-2">
-                    {isEditing ? (
-                        <textarea
-                            value={editableTask.text}
-                            onChange={(e) => handleFieldChange('text', e.target.value)}
-                            className="text-xl font-bold w-full p-1 border rounded-md"
-                        />
-                    ) : (
-                        <h3 className="text-xl font-bold">{task.text}</h3>
-                    )}
+                    <div className="flex items-center gap-2">
+                        {task.isOffline && (
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-sky-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <title>This task is saved locally and will sync when online.</title>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                            </svg>
+                        )}
+                        {isEditing ? (
+                            <textarea
+                                value={editableTask.text}
+                                onChange={(e) => handleFieldChange('text', e.target.value)}
+                                className="text-xl font-bold w-full p-1 border rounded-md"
+                            />
+                        ) : (
+                            <h3 className="text-xl font-bold">{task.text}</h3>
+                        )}
+                    </div>
                     {canManageTasks && !isEditing && task.status !== TodoStatus.DONE && (
                         <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
                     )}
@@ -201,6 +207,7 @@ const TaskDetailModal: React.FC<{
                 <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
                 
                 <div className="flex-grow overflow-y-auto pr-2 space-y-6">
+                    {/* ... (rest of the modal content is the same) ... */}
                     <div className="grid grid-cols-2 gap-x-6 gap-y-4 pb-4 border-b">
                          {isEditing && (
                              <>
@@ -315,6 +322,12 @@ const TaskDetailModal: React.FC<{
                             {task.comments?.map(comment => (
                                 <div key={comment.id} className="flex flex-col items-start">
                                     <div className="flex items-center gap-2 text-sm mb-1">
+                                        {comment.isOffline && (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <title>This comment is saved locally and will sync when online.</title>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                            </svg>
+                                        )}
                                         <span className="font-semibold">{userMap.get(comment.creatorId)?.name || '...'}</span>
                                         <span className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleString()}</span>
                                     </div>
@@ -372,7 +385,6 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
 
 
     const fetchData = useCallback(async () => {
-        // setLoading(true); prevent flicker on refetch
         try {
             if (!user.companyId) return;
 
@@ -405,6 +417,10 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
     useEffect(() => {
         setLoading(true);
         fetchData();
+        
+        window.addEventListener('datachanged', fetchData);
+        return () => window.removeEventListener('datachanged', fetchData);
+
     }, [fetchData]);
     
     const onAddTask = async (taskData: Omit<Todo, 'id' | 'createdAt' | 'creatorId' | 'status'>) => {
@@ -419,9 +435,9 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
                 const newTodo = await api.addTodo(fullTaskData, user.id);
                 setAllTodos(prev => [newTodo, ...prev]);
                 addToast('Task created successfully!', 'success');
+                setIsCreateModalOpen(false);
             } catch (error) {
                 addToast('Failed to create task.', 'error');
-                 // Re-throw to keep modal open
                 throw error;
             }
         } else {
@@ -434,43 +450,82 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
             setAllTodos(prev => [offlineTodo, ...prev]);
             queueAction({
                 type: 'ADD_TODO',
-                payload: fullTaskData,
+                payload: { taskData: fullTaskData, tempId: offlineTodo.id },
                 projectId: fullTaskData.projectId,
             });
             addToast('Task created offline. It will sync when you reconnect.', 'success');
+            setIsCreateModalOpen(false);
         }
-        setIsCreateModalOpen(false);
     };
 
     const handleUpdateTask = async (todoId: number | string, updates: Partial<Todo>) => {
-        try {
-            const updatedTask = await api.updateTodo(todoId, updates, user.id);
-            const newTodos = allTodos.map(t => t.id === todoId ? updatedTask : t);
-            setAllTodos(newTodos);
-            if (selectedTask?.id === todoId) {
-                setSelectedTask(updatedTask);
+        // Optimistic update
+        const originalTodos = allTodos;
+        const updatedTask = { ...allTodos.find(t => t.id === todoId)!, ...updates };
+        setAllTodos(prev => prev.map(t => (t.id === todoId ? updatedTask : t)));
+        if (selectedTask?.id === todoId) {
+            setSelectedTask(updatedTask);
+        }
+        
+        if (isOnline) {
+            try {
+                await api.updateTodo(todoId, updates, user.id);
+                addToast('Task updated.', 'success');
+            } catch (error) {
+                setAllTodos(originalTodos); // Revert on error
+                addToast('Failed to update task.', 'error');
             }
-            addToast('Task updated.', 'success');
-        } catch (error) {
-            addToast('Failed to update task.', 'error');
+        } else {
+             queueAction({
+                type: 'UPDATE_TODO',
+                payload: { id: todoId, updates, actorId: user.id },
+                projectId: updatedTask.projectId,
+            });
+            addToast('Task update queued.', 'success');
         }
     };
     
     const handleAddComment = async (todoId: number | string, text: string) => {
-        try {
-            const newComment = await api.addComment(todoId, text, user.id);
+        const optimisticComment: Comment = {
+            id: `offline_comment_${Date.now()}`,
+            creatorId: user.id,
+            text,
+            createdAt: new Date(),
+            isOffline: !isOnline,
+        };
+
+        const updateState = (comment: Comment) => {
             const newTodos = allTodos.map(t => {
                 if (t.id === todoId) {
-                    return { ...t, comments: [...(t.comments || []), newComment] };
+                    return { ...t, comments: [...(t.comments || []), comment] };
                 }
                 return t;
             });
             setAllTodos(newTodos);
             if (selectedTask?.id === todoId) {
-                setSelectedTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), newComment] } : null);
+                setSelectedTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), comment] } : null);
             }
-        } catch(error) {
-             addToast('Failed to add comment.', 'error');
+        };
+
+        updateState(optimisticComment);
+        
+        const currentTask = allTodos.find(t => t.id === todoId);
+        if (!currentTask) return;
+
+        if (isOnline) {
+            try {
+                await api.addComment(todoId, text, user.id);
+            } catch(error) {
+                 addToast('Failed to add comment.', 'error');
+                 fetchData(); // Revert optimistic update
+            }
+        } else {
+            queueAction({
+                type: 'ADD_COMMENT',
+                payload: { todoId, text, creatorId: user.id },
+                projectId: currentTask.projectId,
+            });
+            addToast('Comment added offline. It will sync later.', 'success');
         }
     };
 
@@ -480,14 +535,20 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
     const filteredTodos = useMemo(() => {
         return allTodos
             .filter(todo => {
-                const searchMatch = todo.text.toLowerCase().includes(searchTerm.toLowerCase());
+                const searchTxt = searchTerm.toLowerCase();
+                const searchMatch = (
+                    todo.text.toLowerCase().includes(searchTxt) ||
+                    projectMap.get(todo.projectId)?.name.toLowerCase().includes(searchTxt) ||
+                    (todo.assigneeId ? userMap.get(todo.assigneeId)?.name.toLowerCase().includes(searchTxt) : false) ||
+                    String(todo.id).includes(searchTxt)
+                );
                 const projectMatch = filters.projectId === 'all' || todo.projectId === parseInt(filters.projectId, 10);
                 const assigneeMatch = filters.assigneeId === 'all' || todo.assigneeId === parseInt(filters.assigneeId, 10);
                 const statusMatch = filters.status === 'all' || todo.status === filters.status;
                 return searchMatch && projectMatch && assigneeMatch && statusMatch;
             })
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }, [allTodos, searchTerm, filters]);
+    }, [allTodos, searchTerm, filters, projectMap, userMap]);
 
     const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
 
@@ -526,18 +587,18 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
 
         setIsApplyingBulkActions(true);
         try {
-            const promises = Array.from(selectedTaskIds).map(id => api.updateTodo(id, updates, user.id));
+            const promises = Array.from(selectedTaskIds).map(id => handleUpdateTask(id, updates));
             await Promise.all(promises);
             addToast(`${selectedTaskIds.size} tasks updated successfully.`, "success");
             setSelectedTaskIds(new Set());
             setBulkStatus('');
             setBulkPriority('');
             setBulkAssigneeId('');
-            await fetchData();
         } catch(e) {
             addToast("Failed to apply bulk actions.", "error");
         } finally {
             setIsApplyingBulkActions(false);
+            fetchData(); // Refresh all data
         }
     };
 
@@ -585,7 +646,7 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
             </div>
 
             {canManageTasks && selectedTaskIds.size > 0 && (
-                 <div className="sticky top-0 z-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg shadow-md border animate-fade-in flex flex-wrap items-center gap-4">
+                 <div className="sticky top-6 lg:top-8 z-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg shadow-md border animate-fade-in flex flex-wrap items-center gap-4">
                     <span className="font-semibold text-sm">{selectedTaskIds.size} tasks selected</span>
                     <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as TodoStatus)} className="p-2 border bg-white rounded-md text-sm">
                         <option value="">Change Status...</option>
@@ -614,7 +675,7 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
                         <input
                             id="task-search"
                             type="text"
-                            placeholder="Search by task name..."
+                            placeholder="Search name, project, assignee, or ID..."
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500"
@@ -680,7 +741,17 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
                                                 />
                                             </td>
                                         )}
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{todo.text}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                                            <div className="flex items-center gap-2">
+                                                {todo.isOffline && (
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                        <title>This task is saved locally and will sync when online.</title>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
+                                                    </svg>
+                                                )}
+                                                <span>{todo.text}</span>
+                                            </div>
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{projectMap.get(todo.projectId)?.name || 'N/A'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.assigneeId ? userMap.get(todo.assigneeId)?.name : 'Unassigned'}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.status}</td>

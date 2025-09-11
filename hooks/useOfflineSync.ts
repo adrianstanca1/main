@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/mockApi';
-import { Todo } from '../types';
+import { Todo, Comment } from '../types';
 
 // Define the shape of an offline action
 type OfflineActionType = 'ADD_TODO' | 'UPDATE_TODO' | 'UPLOAD_DOCUMENT' | 'ADD_COMMENT';
@@ -70,26 +70,33 @@ export const useOfflineSync = (addToast: (message: string, type: 'success' | 'er
 
         const remainingActions: OfflineAction[] = [];
         let successCount = 0;
+        
+        // This map will track offline IDs to the new online IDs during a sync session
+        const idMap = new Map<string, number>();
 
         for (const action of pendingActions) {
             try {
                 switch (action.type) {
                     case 'ADD_TODO':
-                        await api.addTodo(action.payload, action.payload.creatorId);
+                        const newTodo = await api.addTodo(action.payload.taskData, action.payload.taskData.creatorId);
+                        // Map the temporary offline ID to the new permanent ID from the server
+                        idMap.set(action.payload.tempId, newTodo.id as number);
                         break;
                     case 'UPDATE_TODO':
                         if (typeof action.payload.id === 'number') {
                              await api.updateTodo(action.payload.id, action.payload.updates, action.payload.actorId);
                         }
-                        // Note: If the ID is a string, it means the ADD_TODO for it also failed.
-                        // A more complex system could map temp IDs after the ADD syncs.
-                        // For now, we rely on the ADD action to eventually succeed.
                         break;
                     case 'UPLOAD_DOCUMENT':
                         await api.uploadOfflineDocument(action.payload.docData, action.payload.fileData, action.payload.docData.creatorId);
                         break;
                     case 'ADD_COMMENT':
-                        await api.addComment(action.payload.todoId, action.payload.text, action.payload.creatorId);
+                        let todoId = action.payload.todoId;
+                        // If the comment was for an offline task, use the newly created ID
+                        if (typeof todoId === 'string' && idMap.has(todoId)) {
+                            todoId = idMap.get(todoId)!;
+                        }
+                        await api.addComment(todoId, action.payload.text, action.payload.creatorId);
                         break;
                 }
                 successCount++;

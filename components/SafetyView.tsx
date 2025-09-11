@@ -1,5 +1,7 @@
 
 
+
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, SafetyIncident, Project, IncidentSeverity, IncidentType, IncidentStatus, Permission, Role } from '../types';
 import { api } from '../services/mockApi';
@@ -70,6 +72,7 @@ const ReportIncidentModal: React.FC<{
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Type</label>
                             <select value={type} onChange={e => setType(e.target.value as IncidentType)} className="mt-1 w-full p-2 border rounded-md bg-white">
+                                {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
                                 {Object.values(IncidentType).map(t => <option key={String(t)} value={t}>{t}</option>)}
                             </select>
                         </div>
@@ -77,6 +80,7 @@ const ReportIncidentModal: React.FC<{
                      <div>
                         <label className="block text-sm font-medium text-gray-700">Severity</label>
                         <select value={severity} onChange={e => setSeverity(e.target.value as IncidentSeverity)} className="mt-1 w-full p-2 border rounded-md bg-white">
+                             {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
                              {Object.values(IncidentSeverity).map(s => <option key={String(s)} value={s}>{s}</option>)}
                         </select>
                     </div>
@@ -199,7 +203,8 @@ export const SafetyView: React.FC<SafetyViewProps> = ({ user, addToast }) => {
                             className="w-full p-2 border bg-white rounded-md"
                         >
                             <option value="all">All Statuses</option>
-                             {Object.values(IncidentStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                             {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
+                             {Object.values(IncidentStatus).map(s => <option key={String(s)} value={s}>{s}</option>)}
                         </select>
                     </div>
                 </div>

@@ -53,7 +53,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
 
     const statusClasses = useMemo(() => {
         if (isDone) {
-            return 'opacity-50 scale-95';
+            return 'opacity-60 grayscale-[50%]';
         }
         
         const classes = [];
@@ -105,9 +105,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
             draggable={canManageTasks && !isBlocked}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`group post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105' : ''} relative`}
+            className={`group post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105 hover:z-10' : ''} relative`}
             title={cardTitle || undefined}
         >
+            {isDone && (
+                <div className="absolute top-1 right-1 text-slate-400" title="Completed Task">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-10.707a1 1 0 00-1.414-1.414L9 9.586 7.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                </div>
+            )}
             <div className="flex justify-between items-start gap-2">
                 <div className={`flex-grow break-words flex items-center gap-2 ${isBlocked || isDone ? 'line-through' : ''} ${isDone ? 'text-slate-500' : 'text-slate-800'}`}>
                     {!isDone && todo.isOffline && (

@@ -55,10 +55,12 @@ const EditTimesheetModal: React.FC<{
 
     const handleInputChange = (field: keyof Timesheet, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
-        if (errors[field]) {
+        // FIX: Cast field to string to handle potential symbol keys which cannot be used as an index.
+        if (errors[field as string]) {
             setErrors(prev => {
                 const newErrors = { ...prev };
-                delete newErrors[field];
+                // FIX: Cast field to string to handle potential symbol keys which cannot be used as an index.
+                delete newErrors[field as string];
                 return newErrors;
             });
         }
@@ -196,7 +198,8 @@ const EditTimesheetModal: React.FC<{
                         <div>
                              <label className="text-sm font-medium text-gray-700">Work Type</label>
                             <select value={formData.workType} onChange={(e) => handleInputChange('workType', e.target.value as WorkType)} className="w-full p-2 border rounded-md bg-white mt-1">
-                                {Object.values(WorkType).map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                                {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
+                                {Object.values(WorkType).map(wt => <option key={String(wt)} value={wt}>{wt}</option>)}
                             </select>
                         </div>
                     </div>

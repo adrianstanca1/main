@@ -86,6 +86,7 @@ export const CostEstimator: React.FC<CostEstimatorProps> = ({ user, addToast, on
                 }
             });
 
+            // FIX: Access the .text property directly and parse it as JSON.
             const jsonText = response.text.trim();
             const parsed = JSON.parse(jsonText);
             setEstimation(parsed);

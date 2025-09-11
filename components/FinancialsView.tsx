@@ -1,23 +1,157 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Invoice, Quote, Client, Project, InvoiceStatus, QuoteStatus, FinancialKPIs, Timesheet, InvoiceLineItem } from '../types';
+import { User, Invoice, Quote, Client, Project, InvoiceStatus, QuoteStatus, FinancialKPIs, Timesheet, InvoiceLineItem, MonthlyFinancials, CostBreakdown } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { InvoiceStatusBadge, QuoteStatusBadge } from './ui/StatusBadge';
 
-interface FinancialsViewProps {
-  user: User;
-  addToast: (message: string, type: 'success' | 'error') => void;
-}
-
-const formatCurrency = (amount: number, currency: string) => {
+const formatCurrency = (amount: number, currency: string, compact = false) => {
     return new Intl.NumberFormat(currency === 'GBP' ? 'en-GB' : 'en-US', {
         style: 'currency',
         currency: currency,
+        notation: compact ? 'compact' : 'standard',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
     }).format(amount);
 };
 
-// --- Invoice Editor (Moved to module scope to fix hook error) ---
+// --- Custom Chart Components (Moved to module scope) ---
+
+const BarChart: React.FC<{
+    data: MonthlyFinancials[];
+    currency: string;
+}> = ({ data, currency }) => {
+    const [tooltip, setTooltip] = useState<{ x: number, y: number, data: MonthlyFinancials } | null>(null);
+    const chartHeight = 300;
+    const chartWidth = 500;
+    const padding = { top: 20, right: 20, bottom: 40, left: 60 };
+    const plotAreaWidth = chartWidth - padding.left - padding.right;
+    const plotAreaHeight = chartHeight - padding.top - padding.bottom;
+
+    const maxValue = useMemo(() => Math.max(...data.flatMap(d => [d.revenue, d.costs])) * 1.1, [data]);
+    const xScale = plotAreaWidth / data.length;
+    const yScale = plotAreaHeight / maxValue;
+
+    const yAxisLabels = useMemo(() => {
+        const labels = [];
+        for (let i = 0; i <= 4; i++) {
+            const value = (maxValue / 4) * i;
+            labels.push({ value, y: chartHeight - padding.bottom - (value * yScale) });
+        }
+        return labels;
+    }, [maxValue, yScale, chartHeight, padding.bottom]);
+
+    return (
+        <div className="relative">
+            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-auto">
+                {/* Y-Axis */}
+                {yAxisLabels.map(label => (
+                    <g key={label.value}>
+                        <text x={padding.left - 8} y={label.y} textAnchor="end" alignmentBaseline="middle" className="text-xs fill-current text-slate-500">
+                            {formatCurrency(label.value, currency, true)}
+                        </text>
+                        <line x1={padding.left} x2={chartWidth - padding.right} y1={label.y} y2={label.y} className="stroke-current text-slate-200" strokeWidth="1" strokeDasharray="2,2"/>
+                    </g>
+                ))}
+
+                {/* Bars and X-Axis Labels */}
+                {data.map((d, i) => {
+                    const barWidth = xScale * 0.35;
+                    const revenueHeight = d.revenue * yScale;
+                    const costHeight = d.costs * yScale;
+                    return (
+                        <g key={d.month}>
+                            <rect
+                                x={padding.left + (i * xScale) + (xScale * 0.1)}
+                                y={chartHeight - padding.bottom - revenueHeight}
+                                width={barWidth}
+                                height={revenueHeight}
+                                className="fill-current text-sky-500 transition-opacity"
+                                onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, data: d })}
+                                onMouseLeave={() => setTooltip(null)}
+                            />
+                             <rect
+                                x={padding.left + (i * xScale) + (xScale * 0.1) + barWidth}
+                                y={chartHeight - padding.bottom - costHeight}
+                                width={barWidth}
+                                height={costHeight}
+                                className="fill-current text-red-400 transition-opacity"
+                                onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, data: d })}
+                                onMouseLeave={() => setTooltip(null)}
+                            />
+                             <text x={padding.left + (i * xScale) + (xScale / 2)} y={chartHeight - padding.bottom + 15} textAnchor="middle" className="text-xs fill-current text-slate-500">{d.month}</text>
+                        </g>
+                    )
+                })}
+            </svg>
+            {tooltip && (
+                 <div className="absolute p-2 text-xs bg-slate-800 text-white rounded-md shadow-lg pointer-events-none" style={{ left: tooltip.x, top: tooltip.y - 80 }}>
+                    <p className="font-bold mb-1">{tooltip.data.month}</p>
+                    <p><span className="w-2 h-2 inline-block bg-sky-500 rounded-full mr-1"></span>Revenue: {formatCurrency(tooltip.data.revenue, currency)}</p>
+                    <p><span className="w-2 h-2 inline-block bg-red-400 rounded-full mr-1"></span>Costs: {formatCurrency(tooltip.data.costs, currency)}</p>
+                    <p><span className="w-2 h-2 inline-block bg-green-400 rounded-full mr-1"></span>Profit: {formatCurrency(tooltip.data.profit, currency)}</p>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const DoughnutChart: React.FC<{
+    data: CostBreakdown[];
+    currency: string;
+}> = ({ data, currency }) => {
+    const size = 150;
+    const strokeWidth = 15;
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const total = useMemo(() => data.reduce((sum, item) => sum + item.amount, 0), [data]);
+    const colors = ['#38bdf8', '#fb7185', '#34d399', '#facc15', '#a78bfa'];
+
+    let accumulatedPercentage = 0;
+
+    return (
+        <div className="flex items-center gap-6">
+            <div className="relative">
+                <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+                    <circle cx={size / 2} cy={size / 2} r={radius} fill="none" className="stroke-current text-slate-200" strokeWidth={strokeWidth} />
+                    {data.map((item, index) => {
+                        const percentage = (item.amount / total) * 100;
+                        const offset = circumference - (accumulatedPercentage / 100) * circumference;
+                        accumulatedPercentage += percentage;
+                        return (
+                            <circle
+                                key={item.category}
+                                cx={size / 2}
+                                cy={size / 2}
+                                r={radius}
+                                fill="none"
+                                stroke={colors[index % colors.length]}
+                                strokeWidth={strokeWidth}
+                                strokeDasharray={circumference}
+                                strokeDashoffset={offset}
+                                transform={`rotate(-90 ${size/2} ${size/2})`}
+                            />
+                        )
+                    })}
+                </svg>
+                 <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-xs text-slate-500">Total Costs</span>
+                    <span className="text-xl font-bold">{formatCurrency(total, currency, true)}</span>
+                </div>
+            </div>
+            <div className="text-sm space-y-2">
+                {data.map((item, index) => (
+                    <div key={item.category} className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[index % colors.length] }}></span>
+                        <span className="flex-grow">{item.category}</span>
+                        <span className="font-semibold">{formatCurrency(item.amount, currency, true)}</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const InvoiceEditor: React.FC<{
     user: User;
     projects: Project[];
@@ -100,6 +234,8 @@ const InvoiceEditor: React.FC<{
                 clientId: associatedClient.id,
                 projectId: associatedProject.id,
                 total: grandTotal,
+// FIX: Added the required 'status' property to satisfy the Invoice type.
+                status: InvoiceStatus.SENT,
                 dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Due in 30 days
                 items: lineItems,
             };
@@ -173,6 +309,11 @@ const InvoiceEditor: React.FC<{
 
 type FinancialTab = 'overview' | 'invoices' | 'quotes' | 'clients';
 
+interface FinancialsViewProps {
+  user: User;
+  addToast: (message: string, type: 'success' | 'error') => void;
+}
+
 export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }) => {
     const [activeTab, setActiveTab] = useState<FinancialTab>('overview');
     const [kpis, setKpis] = useState<FinancialKPIs | null>(null);
@@ -182,6 +323,10 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const [projects, setProjects] = useState<Project[]>([]);
     const [unbilledTimesheets, setUnbilledTimesheets] = useState<Timesheet[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // State for new charts
+    const [monthlyData, setMonthlyData] = useState<MonthlyFinancials[]>([]);
+    const [costData, setCostData] = useState<CostBreakdown[]>([]);
 
     const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false);
     const [timesheetsForInvoice, setTimesheetsForInvoice] = useState<Timesheet[]>([]);
@@ -189,13 +334,15 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
-            const [kpiData, invoiceData, quoteData, clientData, projectData, unbilledData] = await Promise.all([
+            const [kpiData, invoiceData, quoteData, clientData, projectData, unbilledData, monthlyChartData, costChartData] = await Promise.all([
                 api.getFinancialKPIsForCompany(user.companyId),
                 api.getInvoicesByCompany(user.companyId),
                 api.getQuotesByCompany(user.companyId),
                 api.getClientsByCompany(user.companyId),
                 api.getProjectsByCompany(user.companyId),
                 api.getUnbilledTimesheets(user.companyId),
+                api.getMonthlyFinancials(user.companyId),
+                api.getCostBreakdown(user.companyId),
             ]);
             setKpis(kpiData);
             setInvoices(invoiceData);
@@ -203,6 +350,8 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
             setClients(clientData);
             setProjects(projectData);
             setUnbilledTimesheets(unbilledData);
+            setMonthlyData(monthlyChartData);
+            setCostData(costChartData);
         } catch (error) {
             addToast("Failed to load financial data.", "error");
         } finally {
@@ -223,8 +372,7 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const currency = kpis?.currency || 'USD';
     
     const findClientName = useCallback((id: number) => clients.find(c => c.id === id)?.name || 'Unknown Client', [clients]);
-    const findProjectName = useCallback((id: number) => projects.find(p => p.id === id)?.name || 'Unknown Project', [projects]);
-
+    
     const unbilledByProject = useMemo(() => {
         const map = new Map<number, { count: number, totalHours: number }>();
         unbilledTimesheets.forEach(ts => {
@@ -259,18 +407,42 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     }
 
     const renderOverview = useCallback(() => (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-3">
+                <h3 className="text-lg font-semibold mb-1">Last 6 Months Performance</h3>
+                <div className="flex items-center gap-4 text-sm text-slate-500">
+                    <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-sky-500 rounded-sm"></span> Revenue</div>
+                    <div className="flex items-center gap-1.5"><span className="w-3 h-3 bg-red-400 rounded-sm"></span> Costs</div>
+                </div>
+                {monthlyData.length > 0 ? <BarChart data={monthlyData} currency={currency} /> : <p>Not enough data for chart.</p>}
+            </Card>
+            
+            <Card className="lg:col-span-1">
                 <h3 className="text-lg font-semibold mb-4">Financial KPIs</h3>
                 {kpis ? (
-                    <div className="grid grid-cols-2 gap-4">
-                        <Card><p className="text-sm text-slate-500">Profitability</p><p className="text-2xl font-bold">{kpis.profitability}%</p></Card>
-                        <Card><p className="text-sm text-slate-500">Project Margin</p><p className="text-2xl font-bold">{kpis.projectMargin}%</p></Card>
-                        <Card className="col-span-2"><p className="text-sm text-slate-500">Cash Flow</p><p className="text-2xl font-bold">{formatCurrency(kpis.cashFlow, currency)}</p></Card>
+                    <div className="space-y-4">
+                        <div>
+                            <p className="text-sm text-slate-500">Profitability</p>
+                            <p className="text-2xl font-bold">{kpis.profitability}%</p>
+                        </div>
+                        <div>
+                            <p className="text-sm text-slate-500">Project Margin</p>
+                            <p className="text-2xl font-bold">{kpis.projectMargin}%</p>
+                        </div>
+                        <div>
+                             <p className="text-sm text-slate-500">Cash Flow</p>
+                            <p className="text-2xl font-bold">{formatCurrency(kpis.cashFlow, currency)}</p>
+                        </div>
                     </div>
                 ) : <p>No KPI data available.</p>}
-            </div>
-             <div>
+            </Card>
+            
+             <Card className="lg:col-span-2">
+                <h3 className="text-lg font-semibold mb-4">Cost Breakdown (YTD)</h3>
+                {costData.length > 0 ? <DoughnutChart data={costData} currency={currency} /> : <p>Not enough data.</p>}
+            </Card>
+
+            <Card className="lg:col-span-3">
                 <h3 className="text-lg font-semibold mb-4">Unbilled Work</h3>
                 <div className="space-y-3">
                     {unbilledByProject.map(([projectId, data]) => {
@@ -287,9 +459,9 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
                     })}
                      {unbilledByProject.length === 0 && <p className="text-slate-500 text-center py-4">No unbilled timesheets.</p>}
                 </div>
-            </div>
+            </Card>
         </div>
-    ), [kpis, currency, unbilledByProject, projects, handleGenerateInvoice]);
+    ), [kpis, currency, unbilledByProject, projects, handleGenerateInvoice, monthlyData, costData]);
 
     const renderInvoicesTable = useCallback(() => (
         <div className="overflow-x-auto">
