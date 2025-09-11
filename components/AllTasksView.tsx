@@ -585,7 +585,7 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
             </div>
 
             {canManageTasks && selectedTaskIds.size > 0 && (
-                 <div className="sticky top-6 lg:top-8 z-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg shadow-md border animate-fade-in flex flex-wrap items-center gap-4">
+                 <div className="sticky top-0 z-20 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-3 rounded-lg shadow-md border animate-fade-in flex flex-wrap items-center gap-4">
                     <span className="font-semibold text-sm">{selectedTaskIds.size} tasks selected</span>
                     <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as TodoStatus)} className="p-2 border bg-white rounded-md text-sm">
                         <option value="">Change Status...</option>
@@ -666,26 +666,29 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredTodos.map(todo => (
-                                <tr key={todo.id} onClick={() => setSelectedTask(todo)} className="hover:bg-slate-50 cursor-pointer">
-                                     {canManageTasks && (
-                                        <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
-                                            <input
-                                                type="checkbox"
-                                                className="h-4 w-4 rounded border-gray-300"
-                                                checked={selectedTaskIds.has(todo.id)}
-                                                onChange={e => handleSelectOne(todo.id, e.target.checked)}
-                                            />
-                                        </td>
-                                    )}
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{todo.text}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{projectMap.get(todo.projectId)?.name || 'N/A'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.assigneeId ? userMap.get(todo.assigneeId)?.name : 'Unassigned'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.status}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm"><PriorityDisplay priority={todo.priority} /></td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.dueDate ? new Date(todo.dueDate).toLocaleDateString() : 'N/A'}</td>
-                                </tr>
-                            ))}
+                            {filteredTodos.map(todo => {
+                                 const isOverdue = todo.dueDate && new Date(new Date(todo.dueDate).setHours(0, 0, 0, 0)) < new Date(new Date().setHours(0, 0, 0, 0)) && todo.status !== TodoStatus.DONE;
+                                 return(
+                                    <tr key={todo.id} onClick={() => setSelectedTask(todo)} className="hover:bg-slate-50 cursor-pointer">
+                                        {canManageTasks && (
+                                            <td className="px-4 py-4" onClick={e => e.stopPropagation()}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="h-4 w-4 rounded border-gray-300"
+                                                    checked={selectedTaskIds.has(todo.id)}
+                                                    onChange={e => handleSelectOne(todo.id, e.target.checked)}
+                                                />
+                                            </td>
+                                        )}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{todo.text}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{projectMap.get(todo.projectId)?.name || 'N/A'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.assigneeId ? userMap.get(todo.assigneeId)?.name : 'Unassigned'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{todo.status}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm"><PriorityDisplay priority={todo.priority} /></td>
+                                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${isOverdue ? 'text-red-600 font-bold' : 'text-slate-500'}`}>{todo.dueDate ? new Date(todo.dueDate).toLocaleDateString() : 'N/A'}</td>
+                                    </tr>
+                                )
+                            })}
                         </tbody>
                     </table>
                     {filteredTodos.length === 0 && <p className="text-center py-8 text-slate-500">No tasks match your filters.</p>}

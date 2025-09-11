@@ -806,14 +806,23 @@ export const api = {
         if (!companyId) return [];
         return DB.projectTemplates.filter(t => t.companyId === companyId);
     },
-    saveProjectTemplate: async (templateData: Omit<ProjectTemplate, 'id'>, actorId: number): Promise<ProjectTemplate> => {
+    saveProjectTemplate: async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate, actorId: number): Promise<ProjectTemplate> => {
         await simulateDelay(400);
-        const newTemplate: ProjectTemplate = {
-            ...templateData,
-            id: DB.projectTemplates.length + 1,
-        };
-        DB.projectTemplates.push(newTemplate);
-        return newTemplate;
+        if ('id' in templateData) {
+            // Update
+            const index = DB.projectTemplates.findIndex(t => t.id === templateData.id);
+            if (index === -1) throw new Error("Template not found for update");
+            DB.projectTemplates[index] = { ...DB.projectTemplates[index], ...templateData };
+            return DB.projectTemplates[index];
+        } else {
+            // Create
+            const newTemplate: ProjectTemplate = {
+                ...templateData,
+                id: (DB.projectTemplates.reduce((max, t) => Math.max(t.id, max), 0)) + 1,
+            };
+            DB.projectTemplates.push(newTemplate);
+            return newTemplate;
+        }
     },
     deleteProjectTemplate: async (templateId: number, actorId: number): Promise<void> => {
         await simulateDelay(300);

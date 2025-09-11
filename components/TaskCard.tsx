@@ -49,6 +49,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
         return personnel.find(p => p.id === todo.assigneeId);
     }, [todo.assigneeId, personnel]);
     
+    const isOverdue = todo.dueDate && new Date(new Date(todo.dueDate).setHours(0, 0, 0, 0)) < new Date(new Date().setHours(0, 0, 0, 0)) && !isDone;
+
     const statusClasses = useMemo(() => {
         if (isDone) {
             return 'opacity-50 scale-95';
@@ -81,8 +83,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
     const handleDragEnd = (e: React.DragEvent<HTMLDivElement>) => {
         e.currentTarget.style.opacity = '1';
     };
-
-    const isOverdue = todo.dueDate && new Date(new Date(todo.dueDate).setHours(0, 0, 0, 0)) < new Date(new Date().setHours(0, 0, 0, 0)) && !isDone;
     
     const cursorClass = canManageTasks ? (isBlocked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing') : 'cursor-pointer';
 
@@ -108,18 +108,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
             className={`group post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105' : ''} relative`}
             title={cardTitle || undefined}
         >
-            {canManageTasks && !isDone && (
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onSelect(); }} 
-                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/5 hover:bg-black/20 text-slate-700 transition-colors z-10 opacity-0 group-hover:opacity-100"
-                    title="Edit Task"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
-                    </svg>
-                </button>
-            )}
-
             <div className="flex justify-between items-start gap-2">
                 <div className={`flex-grow break-words flex items-center gap-2 ${isBlocked || isDone ? 'line-through' : ''} ${isDone ? 'text-slate-500' : 'text-slate-800'}`}>
                     {!isDone && todo.isOffline && (
@@ -160,11 +148,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
                         <PriorityDisplay priority={todo.priority} />
                     </div>
                 </div>
-                {!isDone && todo.dueDate && (
-                    <div onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    {!isDone && todo.dueDate && (
                         <ReminderControl todo={todo} user={user} addToast={addToast} onReminderUpdate={onReminderUpdate} />
-                    </div>
-                )}
+                    )}
+                     {canManageTasks && !isDone && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onSelect(); }}
+                            className="p-1.5 rounded-full opacity-0 group-hover:opacity-100 hover:bg-black/10 text-slate-500 hover:text-slate-800 transition-all"
+                            title="Edit Task"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );

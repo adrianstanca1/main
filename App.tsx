@@ -26,6 +26,7 @@ import { useReminderService } from './hooks/useReminderService';
 import { api } from './services/mockApi';
 import { hasPermission } from './services/auth';
 import { ProjectsMapView } from './components/ProjectsMapView';
+import { PrincipalAdminDashboard } from './components/PrincipalAdminDashboard';
 
 interface Toast {
     id: number;
@@ -176,8 +177,9 @@ const App: React.FC = () => {
 
         switch (activeView) {
             case 'dashboard':
-            case 'principal-dashboard':
                 return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
+            case 'principal-dashboard':
+                return <PrincipalAdminDashboard user={user!} addToast={addToast} />;
             case 'projects':
                 return <ProjectsView user={user!} addToast={addToast} onSelectProject={handleSelectProject} />;
             case 'documents':

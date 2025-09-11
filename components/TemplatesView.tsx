@@ -1,9 +1,178 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, ProjectTemplate } from '../types';
+import { User, ProjectTemplate, TemplateTask, TodoPriority, DocumentCategory } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-// import { TemplateEditorModal } from './TemplateEditorModal';
+
+interface TemplateEditorModalProps {
+    user: User;
+    template: ProjectTemplate | null;
+    onClose: () => void;
+    onSave: (template: Omit<ProjectTemplate, 'id'> | ProjectTemplate) => void;
+    addToast: (message: string, type: 'success' | 'error') => void;
+}
+
+const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({ user, template, onClose, onSave, addToast }) => {
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [templateTasks, setTemplateTasks] = useState<TemplateTask[]>([]);
+    const [documentCategories, setDocumentCategories] = useState<Set<DocumentCategory>>(new Set());
+    const [safetyProtocols, setSafetyProtocols] = useState<string[]>(['']);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (template) {
+            setName(template.name);
+            setDescription(template.description);
+            setTemplateTasks(template.templateTasks);
+            setDocumentCategories(new Set(template.documentCategories));
+            setSafetyProtocols(template.safetyProtocols.length > 0 ? template.safetyProtocols : ['']);
+        } else {
+            // Reset for new template
+            setName('');
+            setDescription('');
+            setTemplateTasks([]);
+            setDocumentCategories(new Set());
+            setSafetyProtocols(['']);
+        }
+    }, [template]);
+
+    const handleTaskChange = (id: string, field: 'text' | 'priority', value: string) => {
+        setTemplateTasks(prev => prev.map(task => 
+            task.id === id ? { ...task, [field]: value } : task
+        ));
+    };
+
+    const handleAddTask = () => {
+        const newTask: TemplateTask = { id: `new-${Date.now()}`, text: '', priority: TodoPriority.MEDIUM };
+        setTemplateTasks(prev => [...prev, newTask]);
+    };
+    
+    const handleRemoveTask = (id: string) => {
+        setTemplateTasks(prev => prev.filter(task => task.id !== id));
+    };
+    
+    const handleProtocolChange = (index: number, value: string) => {
+        setSafetyProtocols(prev => prev.map((p, i) => i === index ? value : p));
+    };
+
+    const handleAddProtocol = () => {
+        setSafetyProtocols(prev => [...prev, '']);
+    };
+    
+    const handleRemoveProtocol = (index: number) => {
+        setSafetyProtocols(prev => prev.filter((_, i) => i !== index));
+    };
+    
+    const handleCategoryToggle = (category: DocumentCategory) => {
+        setDocumentCategories(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(category)) {
+                newSet.delete(category);
+            } else {
+                newSet.add(category);
+            }
+            return newSet;
+        });
+    };
+
+    const handleSave = async () => {
+        if (!name.trim()) {
+            addToast("Template name is required.", "error");
+            return;
+        }
+        setIsSaving(true);
+        const templateData = {
+            companyId: user.companyId!,
+            name,
+            description,
+            templateTasks: templateTasks.filter(t => t.text.trim()),
+            documentCategories: Array.from(documentCategories),
+            safetyProtocols: safetyProtocols.filter(p => p.trim()),
+        };
+        
+        try {
+            if (template?.id) {
+                await onSave({ ...templateData, id: template.id });
+            } else {
+                await onSave(templateData);
+            }
+        } catch (error) {
+            // Error toast is handled by parent
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
+            <Card className="w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <h2 className="text-2xl font-bold text-slate-800 mb-4 flex-shrink-0">
+                    {template ? 'Edit Project Template' : 'Create New Project Template'}
+                </h2>
+                <div className="flex-grow overflow-y-auto pr-4 space-y-6">
+                    {/* Basic Details */}
+                    <div className="space-y-4">
+                        <div>
+                            <label className="font-medium text-gray-700">Template Name</label>
+                            <input value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded-md mt-1" />
+                        </div>
+                        <div>
+                            <label className="font-medium text-gray-700">Description</label>
+                            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={2} className="w-full p-2 border rounded-md mt-1" />
+                        </div>
+                    </div>
+                    {/* Template Tasks */}
+                    <div>
+                        <h3 className="text-lg font-semibold text-slate-700 mb-2 border-t pt-4">Template Tasks</h3>
+                        <div className="space-y-2">
+                            {templateTasks.map(task => (
+                                <div key={task.id} className="flex gap-2 items-center">
+                                    <input value={task.text} onChange={e => handleTaskChange(task.id, 'text', e.target.value)} placeholder="Task description..." className="flex-grow p-2 border rounded-md" />
+                                    <select value={task.priority} onChange={e => handleTaskChange(task.id, 'priority', e.target.value)} className="p-2 border rounded-md bg-white">
+                                        {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    <Button variant="ghost" onClick={() => handleRemoveTask(task.id)}>Remove</Button>
+                                </div>
+                            ))}
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={handleAddTask} className="mt-2">+ Add Task</Button>
+                    </div>
+                    {/* Document Categories */}
+                    <div>
+                         <h3 className="text-lg font-semibold text-slate-700 mb-2 border-t pt-4">Required Document Categories</h3>
+                         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {Object.values(DocumentCategory).map(cat => (
+                                <label key={cat} className="flex items-center gap-2 p-2 border rounded-md has-[:checked]:bg-sky-50 has-[:checked]:border-sky-500">
+                                    <input type="checkbox" checked={documentCategories.has(cat)} onChange={() => handleCategoryToggle(cat)} className="h-4 w-4 rounded" />
+                                    <span>{cat}</span>
+                                </label>
+                            ))}
+                         </div>
+                    </div>
+                    {/* Safety Protocols */}
+                    <div>
+                        <h3 className="text-lg font-semibold text-slate-700 mb-2 border-t pt-4">Safety Protocols</h3>
+                         <div className="space-y-2">
+                            {safetyProtocols.map((protocol, index) => (
+                                <div key={index} className="flex gap-2 items-center">
+                                    <input value={protocol} onChange={e => handleProtocolChange(index, e.target.value)} placeholder="e.g., Hard hats required..." className="flex-grow p-2 border rounded-md" />
+                                    <Button variant="ghost" onClick={() => handleRemoveProtocol(index)}>Remove</Button>
+                                </div>
+                            ))}
+                        </div>
+                        <Button variant="secondary" size="sm" onClick={handleAddProtocol} className="mt-2">+ Add Protocol</Button>
+                    </div>
+                </div>
+                 <div className="flex justify-end gap-2 mt-6 pt-4 border-t flex-shrink-0">
+                    <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button onClick={handleSave} isLoading={isSaving}>Save Template</Button>
+                </div>
+            </Card>
+        </div>
+    );
+};
+
 
 interface TemplatesViewProps {
   user: User;
@@ -15,7 +184,7 @@ const TemplateCard: React.FC<{
     onEdit: () => void,
     onDelete: () => void,
 }> = ({ template, onEdit, onDelete }) => (
-    <Card className="flex flex-col">
+    <Card className="flex flex-col animate-card-enter">
         <div className="flex-grow">
             <h3 className="text-lg font-bold text-slate-800">{template.name}</h3>
             <p className="text-sm text-slate-500 mt-1 mb-4">{template.description}</p>
@@ -57,14 +226,12 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
 
     const handleCreate = () => {
         setEditingTemplate(null);
-        // setIsEditorOpen(true);
-        addToast("Create/Edit modal not implemented yet.", "error");
+        setIsEditorOpen(true);
     };
     
     const handleEdit = (template: ProjectTemplate) => {
         setEditingTemplate(template);
-        // setIsEditorOpen(true);
-        addToast("Create/Edit modal not implemented yet.", "error");
+        setIsEditorOpen(true);
     };
 
     const handleDelete = async (templateId: number) => {
@@ -79,12 +246,32 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
         }
     };
     
+    const handleSaveTemplate = async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate) => {
+        try {
+            await api.saveProjectTemplate(templateData, user.id);
+            addToast( 'id' in templateData ? "Template updated successfully!" : "Template created successfully!", "success");
+            setIsEditorOpen(false);
+            fetchData();
+        } catch (error) {
+            addToast("Failed to save template.", "error");
+        }
+    };
+    
     if (loading) {
         return <Card><p>Loading templates...</p></Card>;
     }
 
     return (
         <div className="space-y-6">
+            {isEditorOpen && (
+                <TemplateEditorModal
+                    user={user}
+                    template={editingTemplate}
+                    onClose={() => setIsEditorOpen(false)}
+                    onSave={handleSaveTemplate}
+                    addToast={addToast}
+                />
+            )}
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-bold text-slate-800">Project Templates</h2>
                 <Button variant="primary" onClick={handleCreate}>

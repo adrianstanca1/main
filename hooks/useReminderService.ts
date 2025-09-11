@@ -27,7 +27,7 @@ const saveTriggeredIds = (ids: Set<number>) => {
 };
 
 export const useReminderService = (user: User | null) => {
-    const tasksRef = useRef<Map<number, Todo>>(new Map());
+    const tasksRef = useRef<Map<string | number, Todo>>(new Map());
     const projectsRef = useRef<Map<number, Project>>(new Map());
     
     useEffect(() => {
@@ -53,12 +53,9 @@ export const useReminderService = (user: User | null) => {
                     projects.map(p => api.getTodosByProject(p.id))
                 )).flat();
 
-                const taskMap = new Map<number, Todo>();
-                // Ensure only tasks with numeric IDs are added to the map, as offline tasks might have string IDs.
+                const taskMap = new Map<string | number, Todo>();
                 allTasks.forEach(t => {
-                    if (typeof t.id === 'number') {
-                        taskMap.set(t.id, t);
-                    }
+                    taskMap.set(t.id, t);
                 });
                 tasksRef.current = taskMap;
                 
