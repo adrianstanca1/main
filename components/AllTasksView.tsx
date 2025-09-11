@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { User, Todo, Project, Permission, TodoStatus, TodoPriority, Comment, SubTask } from '../types';
 import { api } from '../services/mockApi';
@@ -70,7 +71,7 @@ const CreateTaskModal: React.FC<{
                         <div>
                             <label htmlFor="priority-select" className="block text-sm font-medium text-gray-700">Priority</label>
                             <select id="priority-select" value={priority} onChange={e => setPriority(e.target.value as TodoPriority)} className="mt-1 w-full p-2 border rounded-md bg-white">
-                                {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                             </select>
                         </div>
                         <div>
@@ -214,13 +215,13 @@ const TaskDetailModal: React.FC<{
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
                                     <select value={editableTask.status} onChange={(e) => handleFieldChange('status', e.target.value as TodoStatus)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
-                                        {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                        {Object.values(TodoStatus).map(s => <option key={String(s)} value={s}>{s}</option>)}
                                     </select>
                                 </div>
                                 <div>
                                     <label className="text-xs font-semibold text-slate-500 uppercase">Priority</label>
                                     <select value={editableTask.priority} onChange={(e) => handleFieldChange('priority', e.target.value as TodoPriority)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
-                                        {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                        {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                                     </select>
                                 </div>
                              </>
@@ -650,11 +651,11 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
                     <span className="font-semibold text-sm">{selectedTaskIds.size} tasks selected</span>
                     <select value={bulkStatus} onChange={e => setBulkStatus(e.target.value as TodoStatus)} className="p-2 border bg-white rounded-md text-sm">
                         <option value="">Change Status...</option>
-                        {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                        {Object.values(TodoStatus).map(s => <option key={String(s)} value={s}>{s}</option>)}
                     </select>
                      <select value={bulkPriority} onChange={e => setBulkPriority(e.target.value as TodoPriority)} className="p-2 border bg-white rounded-md text-sm">
                         <option value="">Change Priority...</option>
-                        {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                        {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                     </select>
                     <select value={bulkAssigneeId} onChange={e => setBulkAssigneeId(e.target.value)} className="p-2 border bg-white rounded-md text-sm">
                         <option value="">Assign to...</option>
@@ -699,7 +700,7 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
                         <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                         <select id="status-filter" value={filters.status} onChange={e => setFilters(f => ({...f, status: e.target.value}))} className="w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm">
                             <option value="all">All Statuses</option>
-                            {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                            {Object.values(TodoStatus).map(s => <option key={String(s)} value={s}>{s}</option>)}
                         </select>
                     </div>
                 </div>

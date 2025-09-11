@@ -216,6 +216,19 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, u
     }]), [project]);
     
     const allTodos = todos; // For Kanban board context
+    
+    const statusStyles: Record<Project['status'], string> = {
+        'Active': 'bg-green-100 text-green-800',
+        'On Hold': 'bg-yellow-100 text-yellow-800',
+        'Completed': 'bg-slate-200 text-slate-800'
+    };
+
+    const formatCurrency = (amount: number) => {
+        return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
+    };
+    
+    const budgetProgress = project.budget > 0 ? (project.actualCost / project.budget) * 100 : 0;
+
 
     if (loading) return <Card>Loading project details...</Card>;
 
@@ -239,15 +252,51 @@ export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, u
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2">
                     <Card>
-                        <h2 className="text-3xl font-bold text-slate-800">{project.name}</h2>
-                        <p className="text-slate-500">{project.location.address}</p>
+                        <div className="flex justify-between items-start">
+                             <div>
+                                <h2 className="text-3xl font-bold text-slate-800">{project.name}</h2>
+                                <p className="text-slate-500">{project.location.address}</p>
+                            </div>
+                             <span className={`px-3 py-1 text-sm font-semibold rounded-full flex-shrink-0 ${statusStyles[project.status]}`}>
+                                {project.status}
+                            </span>
+                        </div>
+                        <div className="mt-4 pt-4 border-t">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
+                                <div>
+                                    <p className="text-slate-500">Start Date</p>
+                                    <p className="font-semibold text-slate-800 text-base">{new Date(project.startDate).toLocaleDateString()}</p>
+                                </div>
+                                 <div>
+                                    <p className="text-slate-500">Project Type</p>
+                                    <p className="font-semibold text-slate-800 text-base">{project.projectType}</p>
+                                </div>
+                                <div className="col-span-2 md:col-span-1">
+                                    <p className="text-slate-500">Work Class</p>
+                                    <p className="font-semibold text-slate-800 text-base">{project.workClassification}</p>
+                                </div>
+                                <div className="col-span-2 md:col-span-3">
+                                     <p className="text-slate-500">Budget vs. Actual</p>
+                                    <p className="font-semibold text-slate-800 text-base">
+                                        {formatCurrency(project.actualCost)} / {formatCurrency(project.budget)}
+                                    </p>
+                                    <div className="w-full bg-slate-200 rounded-full h-2.5 mt-1">
+                                        <div 
+                                            className={`h-2.5 rounded-full ${budgetProgress > 100 ? 'bg-red-500' : 'bg-green-500'}`} 
+                                            style={{ width: `${Math.min(budgetProgress, 100)}%` }}
+                                            title={`${budgetProgress.toFixed(1)}% of budget spent`}
+                                        ></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </Card>
                 </div>
                 <Card>
                     <h3 className="font-semibold mb-2">Project Team</h3>
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-h-56 overflow-y-auto">
                         {projectTeam.map(member => (
-                            <div key={member.id} className="flex justify-between items-center text-sm">
+                            <div key={member.id} className="flex justify-between items-center text-sm p-2 rounded-md hover:bg-slate-50">
                                 <div>
                                     <p className="font-medium">{member.name}</p>
                                     <p className="text-xs text-slate-500">{member.projectRole}</p>

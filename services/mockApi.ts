@@ -1,99 +1,144 @@
-// This file mocks a backend API for the application.
-// In a real application, this would be replaced with actual HTTP calls.
+
 import * as mockData from './mockData';
-import { 
-    User, Company, Project, Todo, Timesheet, Document, SafetyIncident,
-    FinancialKPIs, Invoice, Quote, Client, Equipment, ResourceAssignment,
-    ProjectAssignment, Announcement, Conversation, ChatMessage,
-    ProjectTemplate, TemplateTask, PlatformSettings, PendingApproval,
-    AuditLog, UsageMetric, SystemHealth,
-    Role, TodoStatus, TimesheetStatus, IncidentStatus, EquipmentStatus,
-    DocumentStatus, DocumentCategory, ProjectRole,
-    InvoiceLineItem, TodoPriority,
-    // FIX: Add Comment and RiskAnalysis to imports to resolve type conflicts and errors.
-    Comment,
-    RiskAnalysis
-// FIX: Removed Omit, as it's a built-in TypeScript utility type.
+import {
+  User, Company, Project, Todo, Timesheet, Document, SafetyIncident,
+  FinancialKPIs, Invoice, Quote, Client, Equipment, ResourceAssignment,
+  ProjectAssignment, Announcement, Conversation, ChatMessage,
+  ProjectTemplate, PlatformSettings, PendingApproval, AuditLog, UsageMetric, SystemHealth, CompanySettings,
+  Role, TodoStatus, TodoPriority, WorkType, TimesheetStatus, DocumentCategory,
+  DocumentStatus, IncidentSeverity, IncidentType, IncidentStatus as SafetyIncidentStatus, EquipmentStatus,
+  InvoiceStatus, QuoteStatus, ProjectRole, Tool, ToolStatus, MonthlyFinancials, CostBreakdown, DocumentAcknowledgement, ProjectPhoto, OperativeReport, Grant, RiskAnalysis, BidPackage, Comment, AISearchResult, View, InvoiceLineItem
 } from '../types';
-
-// Simulate network latency
-const LATENCY = 300;
-const simulateDelay = <T>(data: T): Promise<T> => new Promise(resolve => setTimeout(() => resolve(JSON.parse(JSON.stringify(data))), LATENCY));
-// FIX: Changed return type to Promise<never> to satisfy functions that expect specific Promise types on their error paths.
-const simulateError = (message: string): Promise<never> => new Promise((_, reject) => setTimeout(() => reject(new Error(message)), LATENCY));
+import { GenerateContentResponse, Part } from "@google/genai";
 
 
-// --- Helper Functions ---
-let nextId = 1000;
-const getNextId = () => nextId++;
+// Utility to simulate network delay
+const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-const createAuditLog = (actorId: number, action: string, target?: {id: number | string, type: string, name: string}, projectId?: number) => {
+// Let's make the data mutable for our mock API
+let users = [...mockData.users];
+let companies = [...mockData.companies];
+let projects = [...mockData.projects];
+let todos = [...mockData.todos];
+let timesheets = [...mockData.timesheets];
+let documents = [...mockData.documents];
+let safetyIncidents = [...mockData.safetyIncidents];
+let clients = [...mockData.clients];
+let invoices = [...mockData.invoices];
+let quotes = [...mockData.quotes];
+let equipment = [...mockData.equipment];
+let resourceAssignments = [...mockData.resourceAssignments];
+let projectAssignments = [...mockData.projectAssignments];
+let announcements = [...mockData.announcements];
+let conversations = [...mockData.conversations];
+let projectTemplates = [...mockData.projectTemplates];
+let platformSettings = { ...mockData.platformSettings };
+let pendingApprovals = [...mockData.pendingApprovals];
+let auditLogs = [...mockData.auditLogs];
+const usageMetrics = [...mockData.usageMetrics];
+const systemHealth = { ...mockData.systemHealth };
+let companySettings = [...mockData.companySettings];
+const tools = [...mockData.tools];
+const monthlyFinancials = [...mockData.monthlyFinancials];
+const costBreakdown = [...mockData.costBreakdown];
+let documentAcks = [...mockData.documentAcks];
+const projectPhotos = [...mockData.projectPhotos];
+let operativeReports = [...mockData.operativeReports];
+
+
+const logAudit = (actorId: number, action: string, target?: { id: number | string; type: string; name: string }, projectId?: number) => {
     const log: AuditLog = {
-        id: getNextId(),
+        id: Date.now(),
         timestamp: new Date(),
         actorId,
         action,
         target,
         projectId,
     };
-    mockData.auditLogs.unshift(log);
-}
+    auditLogs.unshift(log);
+};
 
-// --- API Implementation ---
+// A simple mock for Gemini API responses
+const mockGeminiResponse = (text: string): GenerateContentResponse => ({
+    text: text,
+    candidates: [{
+        content: {
+            parts: [{ text }],
+            role: 'model'
+        },
+        finishReason: 'STOP',
+        index: 0,
+        safetyRatings: [],
+    }],
+});
+
+const mockGeminiImageResponse = (text: string, base64Image: string, mimeType: string): GenerateContentResponse => ({
+    text: text,
+    candidates: [{
+        content: {
+            parts: [
+                { text: text },
+                { inlineData: { data: base64Image, mimeType: mimeType } }
+            ],
+            role: 'model'
+        },
+        finishReason: 'STOP',
+        index: 0,
+        safetyRatings: [],
+    }]
+});
+
+
 export const api = {
-    // Auth/User
-    getUsersByCompany: (companyId?: number): Promise<User[]> => {
-        if (companyId === undefined) return simulateDelay(mockData.users); // For login screen
-        return simulateDelay(mockData.users.filter(u => u.companyId === companyId));
+    // --- Companies & Users ---
+    getCompanies: async (): Promise<Company[]> => {
+        await delay(200);
+        return companies.filter(c => c.status !== 'Archived');
     },
-
-    // Company
-    getCompanies: (): Promise<Company[]> => simulateDelay(mockData.companies),
-    getCompanySettings: (companyId: number) => simulateDelay(mockData.companySettings.find(cs => cs.companyId === companyId) || mockData.companySettings[0]),
-    updateCompanySettings: (companyId: number, updates: any, actorId: number) => {
-        const index = mockData.companySettings.findIndex(cs => cs.companyId === companyId);
-        if (index > -1) {
-            mockData.companySettings[index] = { ...mockData.companySettings[index], ...updates };
-            createAuditLog(actorId, `Updated company settings`);
-            return simulateDelay(mockData.companySettings[index]);
-        }
-        return simulateError("Settings not found");
+    getUsersByCompany: async (companyId?: number): Promise<User[]> => {
+        await delay(200);
+        if (companyId === undefined) return users;
+        return users.filter(u => u.companyId === companyId);
     },
-    
-    // Projects
-    getProjectsByCompany: (companyId: number): Promise<Project[]> => simulateDelay(mockData.projects.filter(p => p.companyId === companyId)),
-    getProjectsByUser: (userId: number): Promise<Project[]> => {
-        const assignments = mockData.projectAssignments.filter(a => a.userId === userId);
-        const projectIds = new Set(assignments.map(a => a.projectId));
-        return simulateDelay(mockData.projects.filter(p => projectIds.has(p.id)));
+    // --- Projects ---
+    getProjectsByCompany: async (companyId: number): Promise<Project[]> => {
+        await delay(300);
+        return projects.filter(p => p.companyId === companyId);
     },
-    getProjectsByManager: (userId: number): Promise<Project[]> => {
-        const assignments = mockData.projectAssignments.filter(a => a.userId === userId && a.projectRole === ProjectRole.MANAGER);
-        const projectIds = new Set(assignments.map(a => a.projectId));
-        return simulateDelay(mockData.projects.filter(p => projectIds.has(p.id)));
+    getProjectsByUser: async (userId: number): Promise<Project[]> => {
+        await delay(300);
+        const userProjectIds = new Set(projectAssignments.filter(pa => pa.userId === userId).map(pa => pa.projectId));
+        return projects.filter(p => userProjectIds.has(p.id));
     },
-    // FIX: Corrected return type annotation by removing Omit wrapper which is not needed here.
-    createProject: (projectData: Omit<Project, 'id' | 'companyId' | 'actualCost' | 'status'>, templateId: number | null, actorId: number): Promise<Project> => {
-        const companyId = mockData.users.find(u => u.id === actorId)?.companyId;
-        // FIX: The simulateError fix allows this return path to type-check correctly.
-        if (!companyId) return simulateError("User company not found");
+    getProjectsByManager: async (userId: number): Promise<Project[]> => {
+        await delay(300);
+        const managedProjectIds = new Set(projectAssignments.filter(pa => pa.userId === userId && pa.projectRole === ProjectRole.MANAGER).map(pa => pa.projectId));
+        return projects.filter(p => managedProjectIds.has(p.id));
+    },
+    createProject: async (projectData: Omit<Project, 'id' | 'companyId' | 'actualCost' | 'status'>, templateId: number | null, actorId: number): Promise<Project> => {
+        await delay(1000);
+        const user = users.find(u => u.id === actorId);
+        if (!user || !user.companyId) throw new Error("User not found or not associated with a company.");
 
         const newProject: Project = {
             ...projectData,
-            id: getNextId(),
-            companyId,
+            id: Date.now(),
+            companyId: user.companyId,
             actualCost: 0,
             status: 'Active',
         };
-        mockData.projects.push(newProject);
-        createAuditLog(actorId, 'Created Project', {id: newProject.id, type: 'Project', name: newProject.name});
-
+        projects.push(newProject);
+        
+        // Add creator as project manager
+        projectAssignments.push({ id: Date.now(), userId: actorId, projectId: newProject.id, projectRole: ProjectRole.MANAGER });
+        
+        // If template is used, create tasks from it
         if (templateId) {
-            const template = mockData.projectTemplates.find(t => t.id === templateId);
+            const template = projectTemplates.find(t => t.id === templateId);
             if (template) {
                 template.templateTasks.forEach(tt => {
                     const newTodo: Todo = {
-                        id: getNextId(),
+                        id: Date.now() + Math.random(),
                         text: tt.text,
                         projectId: newProject.id,
                         creatorId: actorId,
@@ -101,75 +146,97 @@ export const api = {
                         priority: tt.priority,
                         createdAt: new Date(),
                     };
-                    mockData.todos.push(newTodo);
+                    todos.push(newTodo);
                 });
             }
         }
-        return simulateDelay(newProject);
+        
+        logAudit(actorId, 'Created Project', { id: newProject.id, type: 'Project', name: newProject.name });
+        return newProject;
     },
+    // --- Tasks (Todos) ---
+    getTodosByProject: async (projectId: number): Promise<Todo[]> => {
+        await delay(400);
+        return todos.filter(t => t.projectId === projectId);
+    },
+    getTodosByProjectIds: async (projectIds: number[]): Promise<Todo[]> => {
+        await delay(500);
+        const idSet = new Set(projectIds);
+        return todos.filter(t => idSet.has(t.projectId));
+    },
+    addTodo: async (taskData: Omit<Todo, 'id' | 'createdAt'>, actorId: number): Promise<Todo> => {
+        await delay(500);
+        const newTodo: Todo = {
+            ...taskData,
+            id: Date.now(),
+            createdAt: new Date(),
+        };
+        todos.unshift(newTodo);
+        logAudit(actorId, 'Created Task', { id: newTodo.id, type: 'Task', name: newTodo.text }, newTodo.projectId);
+        return newTodo;
+    },
+    updateTodo: async (todoId: number | string, updates: Partial<Todo>, actorId: number): Promise<Todo> => {
+        await delay(300);
+        const todoIndex = todos.findIndex(t => t.id === todoId);
+        if (todoIndex === -1) throw new Error("Todo not found");
+        
+        // If status is changed to Done, add completedAt timestamp
+        if (updates.status === TodoStatus.DONE && todos[todoIndex].status !== TodoStatus.DONE) {
+            updates.completedAt = new Date();
+        }
 
-    // Todos
-    getTodosByProject: (projectId: number): Promise<Todo[]> => simulateDelay(mockData.todos.filter(t => t.projectId === projectId)),
-    getTodosByProjectIds: (projectIds: number[]): Promise<Todo[]> => simulateDelay(mockData.todos.filter(t => projectIds.includes(t.projectId))),
-    addTodo: (taskData: Omit<Todo, 'id' | 'createdAt'>, actorId: number): Promise<Todo> => {
-        const newTodo: Todo = { ...taskData, id: getNextId(), createdAt: new Date() };
-        mockData.todos.unshift(newTodo);
-        createAuditLog(actorId, 'Created Task', { id: newTodo.id, type: 'Task', name: newTodo.text }, newTodo.projectId);
-        return simulateDelay(newTodo);
+        todos[todoIndex] = { ...todos[todoIndex], ...updates };
+        logAudit(actorId, `Updated Task: ${Object.keys(updates).join(', ')}`, { id: todoId, type: 'Task', name: todos[todoIndex].text }, todos[todoIndex].projectId);
+        return todos[todoIndex];
     },
-    updateTodo: (id: number | string, updates: Partial<Todo>, actorId: number): Promise<Todo> => {
-        const index = mockData.todos.findIndex(t => t.id === id);
-        if (index > -1) {
-            if (updates.status === TodoStatus.DONE && !mockData.todos[index].completedAt) {
-                updates.completedAt = new Date();
-            }
-            mockData.todos[index] = { ...mockData.todos[index], ...updates, isOffline: false };
-            createAuditLog(actorId, `Updated Task: ${Object.keys(updates).join(', ')}`, { id, type: 'Task', name: mockData.todos[index].text }, mockData.todos[index].projectId);
-            return simulateDelay(mockData.todos[index]);
-        }
-        return simulateError("Todo not found");
+    updateTodoReminder: async (todoId: number, reminderDate: Date | undefined, actorId: number): Promise<Todo> => {
+        await delay(300);
+        return await api.updateTodo(todoId, { reminderAt: reminderDate }, actorId);
     },
-    // FIX: Added explicit return type Promise<Comment>
-    addComment: (todoId: number | string, text: string, creatorId: number): Promise<Comment> => {
-        const todo = mockData.todos.find(t => t.id === todoId);
-        if (todo) {
-            // FIX: Explicitly typing newComment as Comment from '../types' to resolve name collision with DOM Comment type.
-            const newComment: Comment = { id: getNextId(), creatorId, text, createdAt: new Date() };
-            if (!todo.comments) todo.comments = [];
-            // FIX: Pushing the correctly typed comment object.
-            todo.comments.push(newComment);
-            createAuditLog(creatorId, 'Added Comment', { id: todoId, type: 'Task', name: todo.text }, todo.projectId);
-            // FIX: Returning the correctly typed comment object.
-            return simulateDelay(newComment);
-        }
-        // FIX: The simulateError fix allows this return path to type-check correctly.
-        return simulateError("Todo not found");
-    },
-    updateTodoReminder: (todoId: number, reminderAt: Date | undefined, actorId: number) => {
-        const todo = mockData.todos.find(t => t.id === todoId);
-        if(todo) {
-            todo.reminderAt = reminderAt;
-            return simulateDelay(todo);
-        }
-        // FIX: The simulateError fix allows this return path to type-check correctly.
-        return simulateError("Todo not found");
-    },
+    addComment: async (todoId: number | string, text: string, creatorId: number): Promise<Comment> => {
+        await delay(400);
+        const todo = todos.find(t => t.id === todoId);
+        if (!todo) throw new Error("Todo not found");
 
-    // Timesheets
-    getTimesheetsByUser: (userId: number): Promise<Timesheet[]> => simulateDelay(mockData.timesheets.filter(t => t.userId === userId)),
-    getTimesheetsByCompany: (companyId: number, actorId: number): Promise<Timesheet[]> => simulateDelay(mockData.timesheets.filter(ts => mockData.users.find(u => u.id === ts.userId)?.companyId === companyId)),
-    getTimesheetsForManager: (managerId: number): Promise<Timesheet[]> => {
-        const managedProjectIds = new Set(mockData.projectAssignments.filter(pa => pa.userId === managerId && pa.projectRole === ProjectRole.MANAGER).map(pa => pa.projectId));
-        const managedUserIds = new Set(mockData.projectAssignments.filter(pa => managedProjectIds.has(pa.projectId)).map(pa => pa.userId));
-        return simulateDelay(mockData.timesheets.filter(ts => managedUserIds.has(ts.userId)));
+        const newComment: Comment = {
+            id: Date.now(),
+            creatorId,
+            text,
+            createdAt: new Date(),
+        };
+        if (!todo.comments) todo.comments = [];
+        todo.comments.push(newComment);
+        logAudit(creatorId, 'Added Comment to Task', { id: todo.id, type: 'Task', name: todo.text }, todo.projectId);
+        return newComment;
     },
-    clockIn: (userId: number, projectId: number, location: any, workType: any, photo?: File): Promise<Timesheet> => {
-        if (mockData.timesheets.some(t => t.userId === userId && t.clockOut === null)) {
-            // FIX: The simulateError fix allows this return path to type-check correctly.
-            return simulateError("You are already clocked in to another project.");
+    // --- Timesheets ---
+    getTimesheetsByUser: async (userId: number): Promise<Timesheet[]> => {
+        await delay(300);
+        return timesheets.filter(ts => ts.userId === userId).sort((a,b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
+    },
+    getTimesheetsByCompany: async (companyId: number, actorId: number): Promise<Timesheet[]> => {
+        await delay(500);
+        const companyUserIds = new Set(users.filter(u => u.companyId === companyId).map(u => u.id));
+        return timesheets.filter(ts => companyUserIds.has(ts.userId));
+    },
+    getTimesheetsForManager: async (managerId: number): Promise<Timesheet[]> => {
+        await delay(500);
+        const managedProjectIds = new Set(projectAssignments.filter(pa => pa.userId === managerId && pa.projectRole === ProjectRole.MANAGER).map(pa => pa.projectId));
+        return timesheets.filter(ts => managedProjectIds.has(ts.projectId));
+    },
+    getUnbilledTimesheets: async (companyId: number): Promise<Timesheet[]> => {
+        await delay(400);
+        // This is a mock. In reality, you'd have a flag on the timesheet.
+        // For now, let's just return some recent approved timesheets.
+        return timesheets.filter(ts => ts.status === TimesheetStatus.APPROVED).slice(0, 5);
+    },
+    clockIn: async (userId: number, projectId: number, location: Location, workType: WorkType, photoFile?: File): Promise<Timesheet> => {
+        await delay(800);
+        if (timesheets.some(ts => ts.userId === userId && ts.clockOut === null)) {
+            throw new Error("You are already clocked in.");
         }
         const newTimesheet: Timesheet = {
-            id: getNextId(),
+            id: Date.now(),
             userId,
             projectId,
             clockIn: new Date(),
@@ -178,363 +245,512 @@ export const api = {
             workType,
             status: TimesheetStatus.PENDING,
             clockInLocation: location,
-            trustScore: 1, // Will be calculated on backend
+            checkInPhotoUrl: photoFile ? URL.createObjectURL(photoFile) : undefined,
         };
-        mockData.timesheets.unshift(newTimesheet);
-        return simulateDelay(newTimesheet);
+        timesheets.push(newTimesheet);
+        logAudit(userId, 'Clocked In', { id: newTimesheet.id, type: 'Timesheet', name: `Timesheet #${newTimesheet.id}`}, projectId);
+        return newTimesheet;
     },
-    clockOut: (id: number, location: any, photo?: File): Promise<Timesheet> => {
-        const index = mockData.timesheets.findIndex(t => t.id === id);
-        if (index > -1) {
-            mockData.timesheets[index].clockOut = new Date();
-            mockData.timesheets[index].clockOutLocation = location;
-            return simulateDelay(mockData.timesheets[index]);
-        }
-        return simulateError("Timesheet not found");
+    clockOut: async (timesheetId: number, location: Location, photoFile?: File): Promise<Timesheet> => {
+        await delay(800);
+        const tsIndex = timesheets.findIndex(ts => ts.id === timesheetId);
+        if (tsIndex === -1) throw new Error("Timesheet not found.");
+        timesheets[tsIndex] = {
+            ...timesheets[tsIndex],
+            clockOut: new Date(),
+            clockOutLocation: location,
+            // checkOutPhotoUrl would be handled here
+        };
+        logAudit(timesheets[tsIndex].userId, 'Clocked Out', { id: timesheetId, type: 'Timesheet', name: `Timesheet #${timesheetId}`}, timesheets[tsIndex].projectId);
+        return timesheets[tsIndex];
     },
-    startBreak: (id: number, actorId: number) => {
-         const ts = mockData.timesheets.find(t => t.id === id);
-         if (ts) {
-            ts.breaks.push({ startTime: new Date(), endTime: null });
-            return simulateDelay(ts);
-         }
-         return simulateError("Timesheet not found");
+    startBreak: async (timesheetId: number, actorId: number): Promise<Timesheet> => {
+        await delay(300);
+        const ts = timesheets.find(t => t.id === timesheetId);
+        if (!ts) throw new Error('Timesheet not found');
+        ts.breaks.push({ startTime: new Date(), endTime: null });
+        return ts;
     },
-    endBreak: (id: number, actorId: number) => {
-        const ts = mockData.timesheets.find(t => t.id === id);
-        const openBreak = ts?.breaks.find(b => b.endTime === null);
-        if(openBreak) {
-            openBreak.endTime = new Date();
-            return simulateDelay(ts!);
-        }
-        return simulateError("No active break found");
+    endBreak: async (timesheetId: number, actorId: number): Promise<Timesheet> => {
+        await delay(300);
+        const ts = timesheets.find(t => t.id === timesheetId);
+        if (!ts) throw new Error('Timesheet not found');
+        const activeBreak = ts.breaks.find(b => b.endTime === null);
+        if (activeBreak) activeBreak.endTime = new Date();
+        return ts;
     },
-    updateTimesheetStatus: (id: number, status: TimesheetStatus, reason: string | undefined, actorId: number) => {
-        const ts = mockData.timesheets.find(t => t.id === id);
-        if (ts) {
-            ts.status = status;
+    updateTimesheetStatus: async (id: number, status: TimesheetStatus, reason: string | undefined, actorId: number): Promise<Timesheet> => {
+        await delay(500);
+        const ts = timesheets.find(t => t.id === id);
+        if (!ts) throw new Error("Timesheet not found");
+        ts.status = status;
+        if (status === TimesheetStatus.REJECTED) {
             ts.rejectionReason = reason;
-            createAuditLog(actorId, `Updated Timesheet to ${status}`, { id, type: 'Timesheet', name: `Timesheet #${id}`}, ts.projectId);
-            return simulateDelay(ts);
         }
-        return simulateError("Timesheet not found");
+        logAudit(actorId, `Set Timesheet Status to ${status}`, { id, type: 'Timesheet', name: `Timesheet #${id}`}, ts.projectId);
+        return ts;
     },
-    updateTimesheet: (id: number, updates: Partial<Timesheet>, actorId: number) => {
-        const index = mockData.timesheets.findIndex(t => t.id === id);
-        if (index > -1) {
-            mockData.timesheets[index] = { ...mockData.timesheets[index], ...updates };
-            createAuditLog(actorId, `Edited Timesheet`, { id, type: 'Timesheet', name: `Timesheet #${id}`}, mockData.timesheets[index].projectId);
-            return simulateDelay(mockData.timesheets[index]);
+     updateTimesheet: async (id: number, updates: Partial<Timesheet>, actorId: number): Promise<Timesheet> => {
+        await delay(600);
+        const tsIndex = timesheets.findIndex(t => t.id === id);
+        if (tsIndex === -1) throw new Error("Timesheet not found");
+        timesheets[tsIndex] = { ...timesheets[tsIndex], ...updates };
+        logAudit(actorId, 'Edited Timesheet', { id, type: 'Timesheet', name: `Timesheet #${id}`}, timesheets[tsIndex].projectId);
+        return timesheets[tsIndex];
+    },
+    // --- Documents ---
+    getDocumentsByCompany: async (companyId: number): Promise<Document[]> => {
+        await delay(400);
+        const companyProjectIds = new Set(projects.filter(p => p.companyId === companyId).map(p => p.id));
+        return documents.filter(d => companyProjectIds.has(d.projectId));
+    },
+    getDocumentsByProjectIds: async (projectIds: number[]): Promise<Document[]> => {
+        await delay(500);
+        const idSet = new Set(projectIds);
+        return documents.filter(d => idSet.has(d.projectId));
+    },
+    getDocumentAcksForUser: async (userId: number): Promise<DocumentAcknowledgement[]> => {
+        await delay(200);
+        return documentAcks.filter(ack => ack.userId === userId);
+    },
+    acknowledgeDocument: async (userId: number, documentId: number): Promise<DocumentAcknowledgement> => {
+        await delay(300);
+        const newAck: DocumentAcknowledgement = {
+            id: Date.now(),
+            userId,
+            documentId,
+            timestamp: new Date(),
+        };
+        documentAcks.push(newAck);
+        const doc = documents.find(d => d.id === documentId);
+        if (doc) {
+            logAudit(userId, 'Acknowledged Document', {id: documentId, type: 'Document', name: doc.name}, doc.projectId);
         }
-        return simulateError("Timesheet not found");
+        return newAck;
     },
-    getUnbilledTimesheets: (companyId: number) => {
-        const billableStatuses = [TimesheetStatus.APPROVED];
-        const billedIds = new Set(mockData.invoices.flatMap(inv => (inv as any).billedTimesheetIds || []));
-        const unbilled = mockData.timesheets.filter(ts => {
-            const user = mockData.users.find(u => u.id === ts.userId);
-            return user?.companyId === companyId && billableStatuses.includes(ts.status) && !billedIds.has(ts.id);
-        });
-        return simulateDelay(unbilled);
-    },
-
-    // Documents
-    getDocumentsByCompany: (companyId: number) => simulateDelay(mockData.documents.filter(d => mockData.projects.find(p => p.id === d.projectId)?.companyId === companyId)),
-    getDocumentsByProjectIds: (projectIds: number[]) => simulateDelay(mockData.documents.filter(d => projectIds.includes(d.projectId))),
-    initiateDocumentUpload: (docData: any) => {
-        const newDoc = { ...docData, id: getNextId(), status: DocumentStatus.UPLOADING, uploadedAt: new Date(), version: 1, url: '' };
-        return simulateDelay(newDoc);
-    },
-    performChunkedUpload: (docId: number, fileSize: number, onProgress: (progress: number) => void) => {
-        return new Promise(resolve => {
-            let progress = 0;
-            const interval = setInterval(() => {
-                progress += 20;
-                onProgress(progress);
-                if (progress >= 100) {
-                    clearInterval(interval);
-                    resolve(true);
-                }
-            }, 100);
-        });
-    },
-    finalizeDocumentUpload: (docId: number, actorId: number) => {
-        const doc = mockData.documents.find(d => d.id === docId);
-        if(doc) {
-            doc.status = DocumentStatus.SCANNING;
-            createAuditLog(actorId, 'Uploaded Document', {id: doc.id, type: 'Document', name: doc.name}, doc.projectId);
-            // Simulate scanning process
-            setTimeout(() => {
-                doc.status = DocumentStatus.APPROVED;
-                doc.url = '/sample.pdf';
-            }, 2000);
-            return simulateDelay(doc);
-        }
-        return simulateError("Document not found");
-    },
-    uploadOfflineDocument: (docData: any, fileData: any, actorId: number) => {
+    initiateDocumentUpload: async (docData: Omit<Document, 'id' | 'status' | 'uploadedAt' | 'version' | 'url'>): Promise<Document> => {
+        await delay(200);
         const newDoc: Document = {
-            id: getNextId(),
             ...docData,
+            id: Date.now(),
+            status: DocumentStatus.UPLOADING,
+            uploadedAt: new Date(),
+            version: 1,
+            url: ''
+        };
+        // Don't add to main list yet, wait for finalize
+        return newDoc;
+    },
+    performChunkedUpload: async (docId: number, fileSize: number, onProgress: (progress: number) => void): Promise<void> => {
+        let uploaded = 0;
+        const totalChunks = 5;
+        for (let i = 0; i < totalChunks; i++) {
+            await delay(300); // Simulate chunk upload
+            uploaded += fileSize / totalChunks;
+            onProgress((uploaded / fileSize) * 100);
+        }
+    },
+    finalizeDocumentUpload: async (docId: number, actorId: number): Promise<Document> => {
+        await delay(500);
+        // In a real API, this would come from the initiated data.
+        // Here we just mock it.
+        const docStub = {
+             id: docId,
+             name: 'Uploaded File.pdf',
+             projectId: projects[0].id,
+             category: DocumentCategory.GENERAL,
+             uploadedAt: new Date(),
+             version: 1,
+             creatorId: actorId
+        };
+        const finalDoc: Document = {
+            ...docStub,
+            status: DocumentStatus.APPROVED,
+            url: '/sample.pdf',
+        };
+        documents.unshift(finalDoc);
+        logAudit(actorId, 'Uploaded Document', {id: docId, type: 'Document', name: finalDoc.name}, finalDoc.projectId);
+        return finalDoc;
+    },
+    uploadOfflineDocument: async (docData: any, fileData: any, actorId: number): Promise<void> => {
+        await delay(1500); // Simulate a longer upload
+        const finalDoc: Document = {
+            id: Date.now(),
+            name: docData.name,
+            projectId: docData.projectId,
+            category: docData.category,
+            creatorId: actorId,
             status: DocumentStatus.APPROVED,
             uploadedAt: new Date(),
             version: 1,
             url: '/sample.pdf', // Mock URL
         };
-        mockData.documents.unshift(newDoc);
-        createAuditLog(actorId, 'Uploaded Offline Document', { id: newDoc.id, type: 'Document', name: newDoc.name }, newDoc.projectId);
-        return simulateDelay(newDoc);
+        documents.unshift(finalDoc);
+        logAudit(actorId, 'Uploaded Offline Document', {id: finalDoc.id, type: 'Document', name: finalDoc.name}, finalDoc.projectId);
     },
-    searchAcrossDocuments: (query: string, projectIds: number[], userId: number) => {
-        return simulateDelay({
-            summary: `Based on your query for "${query}", the main findings indicate that safety harness checks are required daily before use, and rebar spacing should not exceed 12 inches on center.`,
-            sources: [
-                { documentId: 1, snippet: `...all personnel must wear appropriate harnesses when working at heights. These harnesses must be checked daily for any signs of wear and tear before any work commences...` },
-                { documentId: 2, snippet: `...spacing for #5 rebar shall be 12" O.C. unless otherwise specified in the structural drawings...` },
-            ]
-        });
+    // --- Safety ---
+    getSafetyIncidentsByCompany: async (companyId: number): Promise<SafetyIncident[]> => {
+        await delay(400);
+        const companyProjectIds = new Set(projects.filter(p => p.companyId === companyId).map(p => p.id));
+        return safetyIncidents.filter(i => companyProjectIds.has(i.projectId));
     },
-    getDocumentAcksForUser: (userId: number) => simulateDelay(mockData.documentAcks.filter(ack => ack.userId === userId)),
-    acknowledgeDocument: (userId: number, documentId: number) => {
-        const newAck = { id: getNextId(), userId, documentId, timestamp: new Date() };
-        mockData.documentAcks.push(newAck);
-        return simulateDelay(newAck);
+    getIncidentsByProject: async (projectId: number): Promise<SafetyIncident[]> => {
+        await delay(300);
+        return safetyIncidents.filter(i => i.projectId === projectId);
     },
-
-    // Safety
-    getSafetyIncidentsByCompany: (companyId: number) => simulateDelay(mockData.safetyIncidents.filter(i => mockData.projects.find(p => p.id === i.projectId)?.companyId === companyId)),
-    getIncidentsByProject: (projectId: number) => simulateDelay(mockData.safetyIncidents.filter(i => i.projectId === projectId)),
-    reportSafetyIncident: (incidentData: Omit<SafetyIncident, 'id'>, actorId: number) => {
-        const newIncident = { ...incidentData, id: getNextId() };
-        mockData.safetyIncidents.unshift(newIncident);
-        createAuditLog(actorId, 'Reported Safety Incident', { id: newIncident.id, type: 'Safety', name: newIncident.type }, newIncident.projectId);
-        return simulateDelay(newIncident);
+    reportSafetyIncident: async (report: Omit<SafetyIncident, 'id'>, actorId: number): Promise<SafetyIncident> => {
+        await delay(700);
+        const newIncident: SafetyIncident = {
+            ...report,
+            id: Date.now(),
+        };
+        safetyIncidents.unshift(newIncident);
+        logAudit(actorId, 'Reported Safety Incident', {id: newIncident.id, type: 'SafetyIncident', name: newIncident.type}, newIncident.projectId);
+        return newIncident;
     },
-    generateSafetyAnalysis: (incidents: SafetyIncident[], projectId: number, actorId: number) => {
-        return simulateDelay({
-            report: `Analysis of ${incidents.length} incidents for Project #${projectId}:\n\n- Common trend: 65% of incidents are 'Near Miss' related to falling objects.\n- Recommendation: Implement mandatory tethering for all tools used at height.\n- Action: Schedule a toolbox talk on this topic for all site operatives.`
-        });
+    submitOperativeReport: async (reportData: { projectId: number; userId: number; notes: string; photoFile?: File }): Promise<OperativeReport> => {
+        await delay(800);
+        const newReport: OperativeReport = {
+            id: Date.now(),
+            projectId: reportData.projectId,
+            userId: reportData.userId,
+            notes: reportData.notes,
+            timestamp: new Date(),
+            photoUrl: reportData.photoFile ? URL.createObjectURL(reportData.photoFile) : undefined
+        };
+        operativeReports.push(newReport);
+        logAudit(reportData.userId, 'Submitted Operative Report', {id: newReport.id, type: 'OperativeReport', name: `Report for project ${reportData.projectId}`}, reportData.projectId);
+        return newReport;
     },
-    
-    // Reports
-    submitOperativeReport: (data: { projectId: number, userId: number, notes: string, photoFile?: File }) => {
-        const newReport = { id: getNextId(), timestamp: new Date(), ...data, photoUrl: data.photoFile ? '/placeholder.jpg' : undefined };
-        mockData.operativeReports.unshift(newReport);
-        return simulateDelay(newReport);
+    getOperativeReportsByProject: async (projectId: number): Promise<OperativeReport[]> => {
+        await delay(300);
+        return operativeReports.filter(r => r.projectId === projectId);
     },
-    getOperativeReportsByProject: (projectId: number) => simulateDelay(mockData.operativeReports.filter(r => r.projectId === projectId)),
-    getPhotosForProject: (projectId: number) => simulateDelay(mockData.projectPhotos.filter(p => p.projectId === projectId)),
-
-    // Financials
-    getFinancialKPIsForCompany: (companyId: number): Promise<FinancialKPIs> => simulateDelay({ profitability: 12.5, projectMargin: 22.3, cashFlow: 150340, currency: 'GBP' }),
-    getInvoicesByCompany: (companyId: number) => simulateDelay(mockData.invoices.filter(i => i.companyId === companyId)),
-    getQuotesByCompany: (companyId: number) => simulateDelay(mockData.quotes.filter(q => q.companyId === companyId)),
-    getClientsByCompany: (companyId: number) => simulateDelay(mockData.clients.filter(c => c.companyId === companyId)),
-    createInvoice: (invoiceData: Omit<Invoice, 'id' | 'issuedAt' | 'amountDue'>, billedTimesheetIds: number[], actorId: number) => {
+    getPhotosForProject: async (projectId: number): Promise<ProjectPhoto[]> => {
+        await delay(300);
+        return projectPhotos.filter(p => p.projectId === projectId);
+    },
+    // --- Financials ---
+    getClientsByCompany: async (companyId: number): Promise<Client[]> => {
+        await delay(300);
+        return clients.filter(c => c.companyId === companyId);
+    },
+    getInvoicesByCompany: async (companyId: number): Promise<Invoice[]> => {
+        await delay(400);
+        return invoices.filter(i => i.companyId === companyId);
+    },
+    getQuotesByCompany: async (companyId: number): Promise<Quote[]> => {
+        await delay(400);
+        return quotes.filter(q => q.companyId === companyId);
+    },
+    getFinancialKPIsForCompany: async (companyId: number): Promise<FinancialKPIs> => {
+        await delay(600);
+        return {
+            profitability: 22.5,
+            projectMargin: 18.2,
+            cashFlow: 125000,
+            currency: 'GBP'
+        };
+    },
+     getMonthlyFinancials: async (companyId: number): Promise<MonthlyFinancials[]> => {
+        await delay(500);
+        return monthlyFinancials;
+    },
+    getCostBreakdown: async (companyId: number): Promise<CostBreakdown[]> => {
+        await delay(500);
+        return costBreakdown;
+    },
+    createInvoice: async (invoiceData: Omit<Invoice, 'id' | 'issuedAt' | 'amountDue'>, billedTimesheetIds: number[], actorId: number): Promise<Invoice> => {
+        await delay(1000);
         const newInvoice: Invoice = {
             ...invoiceData,
-            id: getNextId(),
+            id: Date.now(),
             issuedAt: new Date(),
             amountDue: invoiceData.total,
-            status: 'Sent',
-            billedTimesheetIds: billedTimesheetIds
-        } as any;
-        mockData.invoices.unshift(newInvoice);
-        return simulateDelay(newInvoice);
+        };
+        invoices.push(newInvoice);
+        // Here you would mark timesheets as billed
+        logAudit(actorId, 'Created Invoice', {id: newInvoice.id, type: 'Invoice', name: `Invoice #${newInvoice.id}`}, newInvoice.projectId);
+        return newInvoice;
     },
-    getMonthlyFinancials: (companyId: number) => simulateDelay(mockData.monthlyFinancials),
-    getCostBreakdown: (companyId: number) => simulateDelay(mockData.costBreakdown),
+    // --- Equipment ---
+    getEquipmentByCompany: async (companyId: number): Promise<Equipment[]> => {
+        await delay(300);
+        return equipment.filter(e => e.companyId === companyId);
+    },
+    assignEquipmentToProject: async (equipmentId: number, projectId: number, actorId: number): Promise<Equipment> => {
+        await delay(500);
+        const item = equipment.find(e => e.id === equipmentId);
+        if (!item) throw new Error("Equipment not found");
+        item.projectId = projectId;
+        item.status = EquipmentStatus.IN_USE;
+        logAudit(actorId, `Assigned Equipment to Project`, {id: equipmentId, type: 'Equipment', name: item.name}, projectId);
+        return item;
+    },
+    unassignEquipmentFromProject: async (equipmentId: number, actorId: number): Promise<Equipment> => {
+        await delay(500);
+        const item = equipment.find(e => e.id === equipmentId);
+        if (!item) throw new Error("Equipment not found");
+        const projectId = item.projectId;
+        item.projectId = undefined;
+        item.status = EquipmentStatus.AVAILABLE;
+        logAudit(actorId, `Unassigned Equipment from Project`, {id: equipmentId, type: 'Equipment', name: item.name}, projectId);
+        return item;
+    },
+    updateEquipmentStatus: async (equipmentId: number, status: EquipmentStatus, actorId: number): Promise<Equipment> => {
+        await delay(400);
+        const item = equipment.find(e => e.id === equipmentId);
+        if (!item) throw new Error("Equipment not found");
+        item.status = status;
+        if(status === EquipmentStatus.AVAILABLE) item.projectId = undefined;
+        logAudit(actorId, `Updated Equipment Status to ${status}`, {id: equipmentId, type: 'Equipment', name: item.name}, item.projectId);
+        return item;
+    },
+    getResourceAssignments: async (companyId: number): Promise<ResourceAssignment[]> => {
+        await delay(300);
+        return resourceAssignments.filter(ra => ra.companyId === companyId);
+    },
+    createResourceAssignment: async (assignmentData: Omit<ResourceAssignment, 'id'>, actorId: number): Promise<ResourceAssignment> => {
+        await delay(500);
+        const newAssignment: ResourceAssignment = { ...assignmentData, id: Date.now() };
+        resourceAssignments.push(newAssignment);
+        logAudit(actorId, `Created Resource Assignment`, {id: newAssignment.id, type: 'Assignment', name: `Assignment #${newAssignment.id}`}, newAssignment.projectId);
+        return newAssignment;
+    },
+    deleteResourceAssignment: async (assignmentId: number, actorId: number): Promise<void> => {
+        await delay(500);
+        resourceAssignments = resourceAssignments.filter(ra => ra.id !== assignmentId);
+        logAudit(actorId, `Deleted Resource Assignment`, {id: assignmentId, type: 'Assignment', name: `Assignment #${assignmentId}`});
+    },
+    // --- Team & Assignments ---
+    getProjectAssignmentsByCompany: async (companyId: number): Promise<ProjectAssignment[]> => {
+        await delay(200);
+        const companyProjectIds = new Set(projects.filter(p => p.companyId === companyId).map(p => p.id));
+        return projectAssignments.filter(pa => companyProjectIds.has(pa.projectId));
+    },
+    // --- Communication ---
+    getAnnouncementsForCompany: async (companyId: number): Promise<Announcement[]> => {
+        await delay(300);
+        return announcements.filter(a => a.scope === 'company' && a.companyId === companyId || a.scope === 'platform');
+    },
+    sendAnnouncement: async (announcement: Omit<Announcement, 'id' | 'createdAt'>, actorId: number): Promise<Announcement> => {
+        await delay(600);
+        const newAnnouncement: Announcement = { ...announcement, id: Date.now(), createdAt: new Date() };
+        announcements.unshift(newAnnouncement);
+        logAudit(actorId, 'Sent Announcement', { id: newAnnouncement.id, type: 'Announcement', name: newAnnouncement.title });
+        return newAnnouncement;
+    },
+    getConversationsForUser: async (userId: number): Promise<Conversation[]> => {
+        await delay(400);
+        return conversations.filter(c => c.participants.includes(userId));
+    },
+    getMessagesForConversation: async (conversationId: number, userId: number): Promise<ChatMessage[]> => {
+        await delay(200);
+        const convo = conversations.find(c => c.id === conversationId);
+        if (!convo) return [];
+        
+        // Mark messages as read
+        if (convo.lastMessage && convo.lastMessage.senderId !== userId) {
+            convo.lastMessage.isRead = true;
+        }
+        convo.messages.forEach(msg => {
+            if(msg.senderId !== userId) msg.isRead = true;
+        })
 
-    // Equipment & Resources
-    getEquipmentByCompany: (companyId: number) => simulateDelay(mockData.equipment.filter(e => e.companyId === companyId)),
-    assignEquipmentToProject: (equipmentId: number, projectId: number, actorId: number) => {
-        const item = mockData.equipment.find(e => e.id === equipmentId);
-        if (item) {
-            item.projectId = projectId;
-            item.status = EquipmentStatus.IN_USE;
-            return simulateDelay(item);
-        }
-        return simulateError("Equipment not found");
+        return convo.messages;
     },
-    unassignEquipmentFromProject: (equipmentId: number, actorId: number) => {
-        const item = mockData.equipment.find(e => e.id === equipmentId);
-        if (item) {
-            item.projectId = undefined;
-            item.status = EquipmentStatus.AVAILABLE;
-            return simulateDelay(item);
-        }
-        return simulateError("Equipment not found");
-    },
-    updateEquipmentStatus: (equipmentId: number, status: EquipmentStatus, actorId: number) => {
-         const item = mockData.equipment.find(e => e.id === equipmentId);
-        if (item) {
-            item.status = status;
-            if (status === EquipmentStatus.AVAILABLE) item.projectId = undefined;
-            return simulateDelay(item);
-        }
-        return simulateError("Equipment not found");
-    },
-    getResourceAssignments: (companyId: number): Promise<ResourceAssignment[]> => simulateDelay(mockData.resourceAssignments.filter(r => r.companyId === companyId)),
-    createResourceAssignment: (data: any, actorId: number) => {
-        const newAssignment = { ...data, id: getNextId() };
-        mockData.resourceAssignments.push(newAssignment);
-        return simulateDelay(newAssignment);
-    },
-    deleteResourceAssignment: (id: number, actorId: number) => {
-        // FIX: Mutate array in place to avoid read-only assignment error.
-        const index = mockData.resourceAssignments.findIndex(a => a.id === id);
-        if (index > -1) {
-            mockData.resourceAssignments.splice(index, 1);
-        }
-        return simulateDelay({success: true});
-    },
-    
-    // Team
-    getProjectAssignmentsByCompany: (companyId: number) => simulateDelay(mockData.projectAssignments),
-    updateUserProjectRole: (userId: number, projectId: number, role: ProjectRole, actorId: number) => {
-        const assignment = mockData.projectAssignments.find(a => a.userId === userId && a.projectId === projectId);
-        if (assignment) {
-            assignment.projectRole = role;
-            return simulateDelay(assignment);
-        }
-        return simulateError("Assignment not found");
-    },
-    
-    // Communication
-    sendAnnouncement: (data: Omit<Announcement, 'id' | 'createdAt'>, actorId: number) => {
-        const newAnnouncement: Announcement = { ...data, id: getNextId(), createdAt: new Date() };
-        mockData.announcements.unshift(newAnnouncement);
-        return simulateDelay(newAnnouncement);
-    },
-    getAnnouncementsForCompany: (companyId: number) => simulateDelay(mockData.announcements.filter(a => a.scope === 'platform' || a.companyId === companyId)),
-    getConversationsForUser: (userId: number): Promise<Conversation[]> => {
-        return simulateDelay(mockData.conversations.filter(c => c.participants.includes(userId)));
-    },
-    getMessagesForConversation: (conversationId: number, userId: number): Promise<ChatMessage[]> => {
-        const convo = mockData.conversations.find(c => c.id === conversationId);
-        if (convo) {
-            // Mark messages as read
-            convo.messages.forEach(msg => { if (msg.senderId !== userId) msg.isRead = true; });
-            if (convo.lastMessage && convo.lastMessage.senderId !== userId) {
-                convo.lastMessage.isRead = true;
-            }
-            return simulateDelay(convo.messages);
-        }
-        // FIX: The simulateError fix allows this return path to type-check correctly.
-        return simulateError("Conversation not found");
-    },
-    sendMessage: (senderId: number, recipientId: number, content: string) => {
-        let convo = mockData.conversations.find(c => c.participants.includes(senderId) && c.participants.includes(recipientId));
+    sendMessage: async (senderId: number, recipientId: number, content: string): Promise<{ message: ChatMessage, conversation: Conversation }> => {
+        await delay(500);
+        let convo = conversations.find(c => c.participants.includes(senderId) && c.participants.includes(recipientId));
+        
         if (!convo) {
-            convo = { id: getNextId(), participants: [senderId, recipientId], messages: [], lastMessage: null };
-            mockData.conversations.unshift(convo);
+            convo = { id: Date.now(), participants: [senderId, recipientId], messages: [], lastMessage: null };
+            conversations.push(convo);
         }
+
         const newMessage: ChatMessage = {
-            id: getNextId(),
+            id: Date.now(),
             conversationId: convo.id,
             senderId,
             content,
             timestamp: new Date(),
             isRead: false,
         };
+
         convo.messages.push(newMessage);
         convo.lastMessage = newMessage;
-        return simulateDelay({ message: newMessage, conversation: convo });
+        return { message: newMessage, conversation: convo };
     },
-    
-    // Weather & Location
-    getWeatherForecast: (lat: number, lng: number): Promise<any> => simulateDelay({ condition: 'Partly Cloudy', temperature: 18, icon: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" }),
-
-    // Templates
-    getProjectTemplates: (companyId: number) => simulateDelay(mockData.projectTemplates.filter(t => t.companyId === companyId)),
-    saveProjectTemplate: (templateData: any, actorId: number) => {
-        if (templateData.id) {
-            const index = mockData.projectTemplates.findIndex(t => t.id === templateData.id);
-            mockData.projectTemplates[index] = { ...mockData.projectTemplates[index], ...templateData };
-            return simulateDelay(mockData.projectTemplates[index]);
-        } else {
-            const newTemplate = { ...templateData, id: getNextId() };
-            mockData.projectTemplates.push(newTemplate);
-            return simulateDelay(newTemplate);
+    // --- Templates ---
+    getProjectTemplates: async (companyId: number): Promise<ProjectTemplate[]> => {
+        await delay(400);
+        return projectTemplates.filter(t => t.companyId === companyId);
+    },
+    saveProjectTemplate: async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate, actorId: number): Promise<ProjectTemplate> => {
+        await delay(800);
+        if ('id' in templateData) { // Update
+            const index = projectTemplates.findIndex(t => t.id === templateData.id);
+            if (index > -1) {
+                projectTemplates[index] = templateData;
+                logAudit(actorId, 'Updated Project Template', { id: templateData.id, type: 'Template', name: templateData.name });
+                return templateData;
+            }
+        }
+        // Create
+        const newTemplate: ProjectTemplate = { ...(templateData as Omit<ProjectTemplate, 'id'>), id: Date.now() };
+        projectTemplates.push(newTemplate);
+        logAudit(actorId, 'Created Project Template', { id: newTemplate.id, type: 'Template', name: newTemplate.name });
+        return newTemplate;
+    },
+    deleteProjectTemplate: async (templateId: number, actorId: number): Promise<void> => {
+        await delay(500);
+        const template = projectTemplates.find(t => t.id === templateId);
+        projectTemplates = projectTemplates.filter(t => t.id !== templateId);
+        if (template) {
+            logAudit(actorId, 'Deleted Project Template', { id: template.id, type: 'Template', name: template.name });
         }
     },
-    deleteProjectTemplate: (templateId: number, actorId: number) => {
-        // FIX: Mutate array in place to avoid read-only assignment error.
-        const index = mockData.projectTemplates.findIndex(t => t.id === templateId);
-        if (index > -1) {
-            mockData.projectTemplates.splice(index, 1);
+    // --- AI & Tools ---
+    getTools: async (userId: number): Promise<Tool[]> => {
+        await delay(100);
+        return tools;
+    },
+    searchAcrossDocuments: async (query: string, projectIds: number[], userId: number): Promise<AISearchResult> => {
+        await delay(2000);
+        const relevantDocs = documents.filter(d => projectIds.includes(d.projectId));
+        if (relevantDocs.length === 0) {
+            return { summary: "No relevant documents found to search within.", sources: [] };
         }
-        return simulateDelay({ success: true });
-    },
-
-    // AI Tools
-    getTools: (userId: number) => simulateDelay(mockData.tools),
-    findGrants: (keywords: string, location: string) => {
-        return simulateDelay([
-            { id: 'g1', name: 'Green Construction Initiative', agency: 'Gov UK', amount: '£50,000', description: 'For SMEs using sustainable materials.', url: '#' },
-            { id: 'g2', name: 'Tech Retrofit Fund', agency: 'Innovate UK', amount: '£100,000', description: 'For retrofitting buildings with smart technology.', url: '#' },
-        ]);
-    },
-    analyzeForRisks: (text: string) => {
-        // FIX: Explicitly type the object to match the RiskAnalysis type, ensuring correct literal types for `severity`.
-        const riskAnalysis: RiskAnalysis = {
-            summary: "Analysis found 2 potential risks: one medium financial risk related to unclear payment terms and one low compliance risk.",
-            identifiedRisks: [
-                { severity: 'Medium', description: "Payment terms mention 'net 30' but do not specify if this is from invoice date or completion date.", recommendation: "Clarify the start date for the net 30 payment term in writing before agreeing." },
-                { severity: 'Low', description: "Reference to 'standard safety procedures' is vague.", recommendation: "Request a specific list of applicable safety standards (e.g., ISO 45001)." }
-            ]
+        return {
+            summary: `Based on documents like "${relevantDocs[0].name}", the specifications for "${query}" require Grade A materials and adherence to safety protocol 2.1.`,
+            sources: relevantDocs.slice(0, 2).map(d => ({
+                documentId: d.id,
+                snippet: `...contains information related to your query about ${query}...`
+            }))
         };
-        return simulateDelay(riskAnalysis);
     },
-    generateBidPackage: (url: string, strengths: string) => {
-        return simulateDelay({
-            coverLetter: `Dear Sir/Madam,\n\nWe are pleased to submit our bid... Our key strengths include ${strengths}.\n\nSincerely,\nAS Agents`,
-            checklist: ["Complete Form A", "Provide insurance certificate", "Submit 3 case studies"],
-            summary: "This project involves... Our proposal focuses on delivering quality and efficiency."
-        });
+    generateSafetyAnalysis: async (incidents: SafetyIncident[], projectId: number, userId: number): Promise<{ report: string }> => {
+        await delay(2500);
+        const project = projects.find(p => p.id === projectId);
+        return { report: `Safety Analysis for ${project?.name}:\n\nA high number of "Near Miss" incidents (${incidents.filter(i => i.type === IncidentType.NEAR_MISS).length}) were reported on the East face scaffolding. \n\nRecommendation: Immediately conduct a scaffolding safety review and hold a mandatory toolbox talk for all operatives working at height.` };
     },
-    generateDailySummary: (projectId: number, date: Date, userId: number) => {
-        return simulateDelay(`**Daily Summary for ${date.toLocaleDateString()}**\n- Progress: Framing on floor 2 completed (95%). Electrical rough-in started.\n- Blockers: None reported.\n- Safety: 1 minor hazard observation (trailing cables), resolved on site.\n- Next 24h: Continue electrical, start plumbing rough-in.`);
+     findGrants: async (keywords: string, location: string): Promise<Grant[]> => {
+        await delay(1500);
+        return [
+            { id: 'g1', name: 'Green Construction Innovation Fund', agency: 'Gov.UK', amount: '£50,000 - £250,000', description: 'Supports SMEs using sustainable materials.', url: '#' },
+            { id: 'g2', name: 'Heritage Site Restoration Grant', agency: 'National Trust', amount: 'Up to £100,000', description: 'Funding for restoring historically significant buildings.', url: '#' },
+        ];
     },
-    editImageWithAi: (base64: string, mimeType: string, prompt: string, projectId: number, userId: number) => {
-        // Mock response: returns the same image with a text response
-        return simulateDelay({
+    analyzeForRisks: async (text: string): Promise<RiskAnalysis> => {
+        await delay(1500);
+        return {
+            summary: "The provided text contains one medium financial risk related to unclear payment terms and one low compliance risk.",
+            identifiedRisks: [{
+                severity: 'Medium',
+                description: "Payment terms state 'Net 30' but do not specify penalties for late payment.",
+                recommendation: "Amend terms to include a 1.5% monthly interest charge on overdue invoices."
+            }]
+        }
+    },
+    generateBidPackage: async (tenderUrl: string, strengths: string): Promise<BidPackage> => {
+        await delay(2000);
+        return {
+            coverLetter: "Dear Sir/Madam,\n\nPlease find our comprehensive bid for the project. Our expertise in sustainable materials makes us an ideal partner.\n\nSincerely,\nAS Agents",
+            checklist: ["Financial statements", "Safety record (HS-01)", "Insurance certificate", "Project timeline"],
+            summary: "This bid outlines a cost-effective approach, leveraging our core strengths to deliver the project on time and within budget."
+        };
+    },
+    generateDailySummary: async (projectId: number, date: Date, userId: number): Promise<string> => {
+        await delay(1800);
+        const project = projects.find(p => p.id === projectId);
+        return `--- Daily Summary for ${project?.name} - ${date.toLocaleDateString()} ---\n\nProgress:\n- Completed framing on Floor 5.\n- Received HVAC unit delivery.\n\nIssues:\n- Minor safety observation (trailing cables) reported and resolved.\n\nNext Steps:\n- Begin HVAC installation on Floor 6.\n- Scheduled concrete pour for Wednesday.`
+    },
+    editImageWithAi: async (base64: string, mimeType: string, prompt: string, projectId: number, userId: number): Promise<{ parts: Part[] }> => {
+        await delay(2500);
+        // This is a mock. It doesn't actually edit the image. It just returns the original with a text response.
+        return {
             parts: [
-                { text: "I have circled the potential hazard in red as requested. The worker on the left is not wearing safety glasses." },
+                { text: `Analysis for prompt "${prompt}": One potential hazard found near the scaffolding. All workers appear to be wearing correct PPE.` },
                 { inlineData: { data: base64, mimeType: mimeType } }
             ]
-        });
+        };
     },
-
-    // Principal Admin
-    getSystemHealth: (actorId: number) => simulateDelay(mockData.systemHealth),
-    getAllCompaniesForAdmin: (actorId: number) => simulateDelay(mockData.companies),
-    getUsageMetrics: (actorId: number) => simulateDelay(mockData.usageMetrics),
-    getPlatformStats: (actorId: number) => simulateDelay({ totalCompanies: mockData.companies.length, totalUsers: mockData.users.length, activeProjects: mockData.projects.filter(p => p.status === 'Active').length }),
-    getPlatformSettings: (actorId: number) => simulateDelay(mockData.platformSettings),
-    updatePlatformSettings: (settings: PlatformSettings, actorId: number) => {
-        // FIX: Mutate object properties instead of reassigning the read-only object.
-        Object.assign(mockData.platformSettings, settings);
-        return simulateDelay(mockData.platformSettings);
+    // --- Settings ---
+    getCompanySettings: async (companyId: number): Promise<CompanySettings> => {
+        await delay(100);
+        return companySettings.find(cs => cs.companyId === companyId) || companySettings[0];
     },
-    getPendingApprovalsForPlatform: (actorId: number) => simulateDelay(mockData.pendingApprovals),
-    getPlatformAuditLogs: (actorId: number) => simulateDelay(mockData.auditLogs),
-    getPlatformAnnouncements: (actorId: number) => simulateDelay(mockData.announcements.filter(a => a.scope === 'platform')),
-    updateCompanyStatus: (companyId: number, status: Company['status'], actorId: number) => {
-        const company = mockData.companies.find(c => c.id === companyId);
-        if (company) {
-            company.status = status;
-            return simulateDelay(company);
+    updateCompanySettings: async (companyId: number, settings: CompanySettings, actorId: number): Promise<CompanySettings> => {
+        await delay(500);
+        const index = companySettings.findIndex(cs => cs.companyId === companyId);
+        if (index > -1) {
+            companySettings[index] = settings;
+        } else {
+            companySettings.push(settings);
         }
-        return simulateError("Company not found");
+        logAudit(actorId, `Updated Company Settings`);
+        return settings;
     },
-    inviteCompany: (companyName: string, adminEmail: string, actorId: number) => {
-        // In a real app, this would trigger an email and provisioning workflow.
-        console.log(`Inviting ${companyName} with admin ${adminEmail}`);
-        return simulateDelay({ success: true });
+    // --- Principal Admin ---
+    getSystemHealth: async (adminId: number): Promise<SystemHealth> => {
+        await delay(300);
+        return systemHealth;
     },
-    getAuditLogsForUserProjects: (userId: number) => {
-         const userProjectIds = new Set(mockData.projectAssignments.filter(a => a.userId === userId).map(a => a.projectId));
-         return simulateDelay(mockData.auditLogs.filter(log => log.projectId && userProjectIds.has(log.projectId)));
+    getAllCompaniesForAdmin: async (adminId: number): Promise<Company[]> => {
+        await delay(300);
+        return companies;
+    },
+    getUsageMetrics: async (adminId: number): Promise<UsageMetric[]> => {
+        await delay(400);
+        return usageMetrics;
+    },
+    getPlatformStats: async (adminId: number): Promise<{ totalCompanies: number; totalUsers: number; activeProjects: number }> => {
+        await delay(200);
+        return {
+            totalCompanies: companies.length,
+            totalUsers: users.length,
+            activeProjects: projects.filter(p => p.status === 'Active').length,
+        };
+    },
+    getPlatformSettings: async (adminId: number): Promise<PlatformSettings> => {
+        await delay(100);
+        return platformSettings;
+    },
+    getPendingApprovalsForPlatform: async (adminId: number): Promise<PendingApproval[]> => {
+        await delay(300);
+        return pendingApprovals;
+    },
+    getPlatformAuditLogs: async (adminId: number): Promise<AuditLog[]> => {
+        await delay(500);
+        return auditLogs;
+    },
+    getPlatformAnnouncements: async (adminId: number): Promise<Announcement[]> => {
+        await delay(200);
+        return announcements;
+    },
+    updateCompanyStatus: async (companyId: number, status: Company['status'], actorId: number): Promise<Company> => {
+        await delay(500);
+        const company = companies.find(c => c.id === companyId);
+        if (!company) throw new Error("Company not found");
+        company.status = status;
+        logAudit(actorId, `Updated Company Status to ${status}`, { id: companyId, type: 'Company', name: company.name });
+        return company;
+    },
+    updatePlatformSettings: async (settings: PlatformSettings, actorId: number): Promise<PlatformSettings> => {
+        await delay(600);
+        platformSettings = settings;
+        logAudit(actorId, 'Updated Platform Settings');
+        return platformSettings;
+    },
+    inviteCompany: async (companyName: string, adminEmail: string, actorId: number): Promise<void> => {
+        await delay(1000);
+        logAudit(actorId, 'Invited New Company', { id: companyName, type: 'Company', name: companyName });
+    },
+    // --- Misc ---
+    getWeatherForecast: async (lat: number, lng: number): Promise<{ condition: string; temperature: number; icon: string }> => {
+        await delay(700);
+        // Simple mock based on UK-ish locations
+        if (lat > 53) return { condition: 'Cloudy', temperature: 14, icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z' };
+        return { condition: 'Sunny', temperature: 18, icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' };
     }
 };
