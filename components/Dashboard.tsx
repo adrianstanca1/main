@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { User, View, Project, Role, Timesheet, Todo, Permission, FinancialKPIs, PendingApproval, TimesheetStatus, Document, DocumentCategory, DocumentAcknowledgement, TodoStatus, Comment, SubTask, WorkType, AuditLog, AuditLogAction, DailyLog, Equipment, OperativeReport, WeatherForecast, Announcement } from '../types';
+import { User, View, Project, Role, Timesheet, Todo, Permission, FinancialKPIs, PendingApproval, TimesheetStatus, Document, DocumentCategory, DocumentAcknowledgement, TodoStatus, Comment, SubTask, WorkType, AuditLog, AuditLogAction, DailyLog, Equipment, OperativeReport, WeatherForecast, Announcement, TodoPriority } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -8,29 +8,77 @@ import { hasPermission } from '../services/auth';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { PriorityDisplay } from './ui/PriorityDisplay';
 import { TimesheetStatusBadge } from './ui/StatusBadge';
+import { ReminderControl } from './ReminderControl';
 
 // --- TASK DETAIL MODAL ---
 const TaskDetailModal: React.FC<{
     task: Todo;
     user: User;
     projectName: string;
+    personnel: User[];
     onClose: () => void;
     onUpdateSubtask: (subtaskId: number, completed: boolean) => void;
     onAddComment: (text: string) => void;
-}> = ({ task, user, projectName, onClose, onUpdateSubtask, onAddComment }) => {
+    onUpdateTask: (updates: Partial<Todo>) => void;
+    onReminderUpdate: () => void;
+    addToast: (message: string, type: 'success' | 'error') => void;
+}> = ({ task, user, projectName, personnel, onClose, onUpdateSubtask, onAddComment, onUpdateTask, onReminderUpdate, addToast }) => {
     const [newComment, setNewComment] = useState('');
-    const [users, setUsers] = useState<Map<number, User>>(new Map());
+    const userMap = useMemo(() => new Map(personnel.map(p => [p.id, p])), [personnel]);
+    
+    const [isEditing, setIsEditing] = useState(false);
+    const [editableTask, setEditableTask] = useState<Todo>(task);
 
     useEffect(() => {
-        // Fetch users for comment author names
-        if (user.companyId) {
-            api.getUsersByCompany(user.companyId).then(userList => {
-                const userMap = new Map();
-                userList.forEach(u => userMap.set(u.id, u));
-                setUsers(userMap);
-            });
+        setEditableTask(task);
+    }, [task]);
+
+    const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
+    
+    const handleFieldChange = (field: keyof Todo, value: any) => {
+        setEditableTask(prev => ({ ...prev, [field]: value }));
+    };
+    
+    const handleSubtaskChange = (id: number, field: 'text' | 'completed', value: string | boolean) => {
+        setEditableTask(prev => ({
+            ...prev,
+            subTasks: prev.subTasks?.map(st => st.id === id ? { ...st, [field]: value } : st)
+        }));
+    };
+
+    const handleAddSubtask = () => {
+        const newSubtask: SubTask = { id: Date.now(), text: '', completed: false };
+        setEditableTask(prev => ({
+            ...prev,
+            subTasks: [...(prev.subTasks || []), newSubtask]
+        }));
+    };
+
+    const handleDeleteSubtask = (id: number) => {
+        setEditableTask(prev => ({
+            ...prev,
+            subTasks: prev.subTasks?.filter(st => st.id !== id)
+        }));
+    };
+    
+    const handleSave = () => {
+        const updates: Partial<Todo> = {};
+        (Object.keys(editableTask) as Array<keyof Todo>).forEach(key => {
+            if (JSON.stringify(editableTask[key]) !== JSON.stringify(task[key])) {
+                (updates as any)[key] = editableTask[key];
+            }
+        });
+
+        if (Object.keys(updates).length > 0) {
+            onUpdateTask(updates);
         }
-    }, [user.companyId]);
+        setIsEditing(false);
+    };
+
+    const handleCancel = () => {
+        setEditableTask(task);
+        setIsEditing(false);
+    };
 
     const handleCommentSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -38,35 +86,125 @@ const TaskDetailModal: React.FC<{
         onAddComment(newComment);
         setNewComment('');
     };
+
+    const creatorName = userMap.get(task.creatorId)?.name;
+    const dueDateForInput = editableTask.dueDate ? new Date(editableTask.dueDate).toISOString().split('T')[0] : '';
     
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <Card className="w-full max-w-lg h-auto max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold mb-2">{task.text}</h3>
+            <Card className="w-full max-w-lg h-auto max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-start mb-2">
+                    {isEditing ? (
+                        <textarea
+                            value={editableTask.text}
+                            onChange={(e) => handleFieldChange('text', e.target.value)}
+                            className="text-xl font-bold w-full p-1 border rounded-md"
+                        />
+                    ) : (
+                        <h3 className="text-xl font-bold">{task.text}</h3>
+                    )}
+                    {canManageTasks && !isEditing && (
+                        <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
+                    )}
+                </div>
                 <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
                 
                 <div className="flex-grow overflow-y-auto pr-2 space-y-6">
-                    {/* Sub-tasks */}
-                    {task.subTasks && task.subTasks.length > 0 && (
+                    {/* Task Details Section */}
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4 pb-4 border-b">
+                         {isEditing && (
+                             <>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
+                                    <select value={editableTask.status} onChange={(e) => handleFieldChange('status', e.target.value as TodoStatus)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
+                                        {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-500 uppercase">Priority</label>
+                                    <select value={editableTask.priority} onChange={(e) => handleFieldChange('priority', e.target.value as TodoPriority)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
+                                        {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                             </>
+                         )}
                         <div>
-                            <h4 className="font-semibold text-slate-700 mb-2">Sub-tasks</h4>
-                            <div className="space-y-2">
-                                {task.subTasks.map(st => (
-                                    <div key={st.id} className="flex items-center gap-3 bg-slate-50 p-2 rounded-md">
-                                        <input
-                                            type="checkbox"
-                                            id={`subtask-${st.id}`}
-                                            checked={st.completed}
-                                            onChange={() => onUpdateSubtask(st.id, !st.completed)}
-                                            className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                                            aria-label={st.text}
-                                        />
-                                        <label htmlFor={`subtask-${st.id}`} className={`flex-grow ${st.completed ? 'line-through text-slate-500' : ''}`}>{st.text}</label>
-                                    </div>
-                                ))}
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Assignee</label>
+                            {isEditing ? (
+                                <select 
+                                    value={editableTask.assigneeId || ''} 
+                                    onChange={(e) => handleFieldChange('assigneeId', e.target.value ? parseInt(e.target.value) : undefined)}
+                                    className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm"
+                                >
+                                    <option value="">Unassigned</option>
+                                    {personnel.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            ) : (
+                                <p className="font-medium mt-1">{userMap.get(task.assigneeId)?.name || 'Unassigned'}</p>
+                            )}
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Due Date</label>
+                             {isEditing ? (
+                                <input
+                                    type="date"
+                                    value={dueDateForInput}
+                                    onChange={(e) => handleFieldChange('dueDate', e.target.value ? new Date(e.target.value) : undefined)}
+                                    className="w-full p-1 border rounded-md mt-1 text-sm"
+                                />
+                            ) : (
+                                <p className="font-medium mt-1">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'Not set'}</p>
+                            )}
+                        </div>
+                         <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Reporter</label>
+                            <p className="font-medium mt-1">{creatorName || 'Unknown'}</p>
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Reminder</label>
+                            <div className="mt-1">
+                                <ReminderControl 
+                                    todo={task} 
+                                    user={user} 
+                                    onReminderUpdate={onReminderUpdate} 
+                                    addToast={addToast}
+                                />
                             </div>
                         </div>
-                    )}
+                    </div>
+
+                    {/* Sub-tasks */}
+                    <div>
+                        <h4 className="font-semibold text-slate-700 mb-2">Sub-tasks</h4>
+                        <div className="space-y-2">
+                            {editableTask.subTasks?.map(st => (
+                                <div key={st.id} className="flex items-center gap-3 bg-slate-50 p-2 rounded-md">
+                                    <input
+                                        type="checkbox"
+                                        id={`subtask-${st.id}`}
+                                        checked={st.completed}
+                                        onChange={(e) => isEditing ? handleSubtaskChange(st.id, 'completed', e.target.checked) : onUpdateSubtask(st.id, !st.completed)}
+                                        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                        aria-label={st.text}
+                                    />
+                                    {isEditing ? (
+                                        <>
+                                            <input
+                                                type="text"
+                                                value={st.text}
+                                                onChange={(e) => handleSubtaskChange(st.id, 'text', e.target.value)}
+                                                className="flex-grow p-1 border rounded-md text-sm"
+                                            />
+                                            <button onClick={() => handleDeleteSubtask(st.id)} className="text-red-500 text-xs font-bold">X</button>
+                                        </>
+                                    ) : (
+                                        <label htmlFor={`subtask-${st.id}`} className={`flex-grow ${st.completed ? 'line-through text-slate-500' : ''}`}>{st.text}</label>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                         {isEditing && <Button size="sm" variant="secondary" onClick={handleAddSubtask} className="mt-2">+ Add Sub-task</Button>}
+                    </div>
                     
                     {/* Comments */}
                     <div>
@@ -75,7 +213,7 @@ const TaskDetailModal: React.FC<{
                             {task.comments?.map(comment => (
                                 <div key={comment.id} className="flex flex-col items-start">
                                     <div className="flex items-center gap-2 text-sm mb-1">
-                                        <span className="font-semibold">{users.get(comment.creatorId)?.name || '...'}</span>
+                                        <span className="font-semibold">{userMap.get(comment.creatorId)?.name || '...'}</span>
                                         <span className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleString()}</span>
                                     </div>
                                     <p className="bg-slate-100 p-2 rounded-lg text-slate-800">{comment.text}</p>
@@ -86,14 +224,22 @@ const TaskDetailModal: React.FC<{
                     </div>
                 </div>
 
-                <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
-                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md" />
-                    <Button type="submit" disabled={!newComment.trim()}>Send</Button>
-                </form>
+                {isEditing ? (
+                    <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+                        <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
+                        <Button onClick={handleSave}>Save Changes</Button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
+                        <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md" />
+                        <Button type="submit" disabled={!newComment.trim()}>Send</Button>
+                    </form>
+                )}
             </Card>
         </div>
     );
 };
+
 
 // --- Submit Report Modal ---
 const SubmitReportModal: React.FC<{
@@ -410,6 +556,7 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
     const [shiftTimer, setShiftTimer] = useState<string>('00:00:00');
     const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    const [companyUsers, setCompanyUsers] = useState<User[]>([]);
     
     const activeProject = useMemo(() => {
         if (!activeTimesheet) return null;
@@ -419,10 +566,15 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
     const fetchData = useCallback(async () => {
         if (!user.companyId) return;
         try {
-            const userProjects = await api.getProjectsByUser(user.id);
-            setProjects(userProjects);
+            const [userProjects, timesheetsData, usersData] = await Promise.all([
+                api.getProjectsByUser(user.id),
+                api.getTimesheetsByUser(user.id),
+                api.getUsersByCompany(user.companyId),
+            ]);
 
-            const timesheetsData = await api.getTimesheetsByUser(user.id);
+            setProjects(userProjects);
+            setCompanyUsers(usersData);
+
             const currentActiveTimesheet = timesheetsData.find(t => t.clockOut === null) || null;
             setActiveTimesheet(currentActiveTimesheet);
             
@@ -488,11 +640,26 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
 
     const handleUpdateTaskStatus = async (taskId: number | string, newStatus: TodoStatus) => {
         try {
-            await api.updateTodo(taskId, { status: newStatus }, user.id);
-            setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+            const updatedTask = await api.updateTodo(taskId, { status: newStatus }, user.id);
+            setTasks(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+            if (selectedTask?.id === taskId) {
+                setSelectedTask(updatedTask);
+            }
             addToast('Task status updated.', 'success');
         } catch (error) {
             addToast('Failed to update task status.', 'error');
+        }
+    };
+
+     const handleUpdateTask = async (updates: Partial<Todo>) => {
+        if (!selectedTask) return;
+        try {
+            const updatedTask = await api.updateTodo(selectedTask.id, updates, user.id);
+            setTasks(prev => prev.map(t => t.id === selectedTask.id ? updatedTask : t));
+            setSelectedTask(updatedTask); // Keep modal updated
+            addToast('Task updated.', 'success');
+        } catch (error) {
+            addToast('Failed to update task.', 'error');
         }
     };
     
@@ -529,7 +696,18 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
 
     return (
         <div className="space-y-6">
-            {selectedTask && <TaskDetailModal task={selectedTask} user={user} projectName={projects.find(p => p.id === selectedTask.projectId)?.name || ''} onClose={() => setSelectedTask(null)} onUpdateSubtask={handleUpdateSubtask} onAddComment={handleAddComment} />}
+            {selectedTask && <TaskDetailModal 
+                task={selectedTask} 
+                user={user} 
+                projectName={projects.find(p => p.id === selectedTask.projectId)?.name || ''} 
+                personnel={companyUsers}
+                onClose={() => setSelectedTask(null)} 
+                onUpdateSubtask={handleUpdateSubtask} 
+                onAddComment={handleAddComment} 
+                onUpdateTask={handleUpdateTask}
+                onReminderUpdate={fetchData}
+                addToast={addToast}
+            />}
             {isReportModalOpen && activeProject && <SubmitReportModal user={user} projectId={activeProject.id} onClose={() => setIsReportModalOpen(false)} onSubmit={fetchData} addToast={addToast} />}
             
             <h2 className="text-3xl font-bold text-slate-800">Operative Dashboard</h2>

@@ -17,7 +17,7 @@ const formatCurrency = (amount: number, currency: string) => {
     }).format(amount);
 };
 
-// --- Invoice Editor ---
+// --- Invoice Editor (Moved to module scope to fix hook error) ---
 const InvoiceEditor: React.FC<{
     user: User;
     projects: Project[];
@@ -214,14 +214,37 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
         fetchData();
     }, [fetchData]);
 
-    const handleGenerateInvoice = (projectId: number) => {
+    const handleGenerateInvoice = useCallback((projectId: number) => {
         const sheets = unbilledTimesheets.filter(ts => ts.projectId === projectId);
         setTimesheetsForInvoice(sheets);
         setIsGeneratingInvoice(true);
-    };
+    }, [unbilledTimesheets]);
 
     const currency = kpis?.currency || 'USD';
     
+    const findClientName = useCallback((id: number) => clients.find(c => c.id === id)?.name || 'Unknown Client', [clients]);
+    const findProjectName = useCallback((id: number) => projects.find(p => p.id === id)?.name || 'Unknown Project', [projects]);
+
+    const unbilledByProject = useMemo(() => {
+        const map = new Map<number, { count: number, totalHours: number }>();
+        unbilledTimesheets.forEach(ts => {
+            if (!map.has(ts.projectId)) {
+                map.set(ts.projectId, { count: 0, totalHours: 0 });
+            }
+            const data = map.get(ts.projectId)!;
+            data.count++;
+            if (ts.clockOut) {
+                const diff = new Date(ts.clockOut).getTime() - new Date(ts.clockIn).getTime();
+                data.totalHours += diff / (1000 * 60 * 60);
+            }
+        });
+        return Array.from(map.entries());
+    }, [unbilledTimesheets]);
+    
+    if (loading) {
+        return <Card><p>Loading financial data...</p></Card>;
+    }
+
     if (isGeneratingInvoice) {
         return <InvoiceEditor
             user={user}
@@ -235,17 +258,136 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
         />
     }
 
-    // Render logic for tables and overview
-    const renderContent = () => {
-      // Tables for Invoices, Quotes, Clients
-      return <p>Content for {activeTab}</p>
-    };
+    const renderOverview = useCallback(() => (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+                <h3 className="text-lg font-semibold mb-4">Financial KPIs</h3>
+                {kpis ? (
+                    <div className="grid grid-cols-2 gap-4">
+                        <Card><p className="text-sm text-slate-500">Profitability</p><p className="text-2xl font-bold">{kpis.profitability}%</p></Card>
+                        <Card><p className="text-sm text-slate-500">Project Margin</p><p className="text-2xl font-bold">{kpis.projectMargin}%</p></Card>
+                        <Card className="col-span-2"><p className="text-sm text-slate-500">Cash Flow</p><p className="text-2xl font-bold">{formatCurrency(kpis.cashFlow, currency)}</p></Card>
+                    </div>
+                ) : <p>No KPI data available.</p>}
+            </div>
+             <div>
+                <h3 className="text-lg font-semibold mb-4">Unbilled Work</h3>
+                <div className="space-y-3">
+                    {unbilledByProject.map(([projectId, data]) => {
+                        const project = projects.find(p => p.id === projectId);
+                        return (
+                            <div key={projectId} className="flex justify-between items-center p-3 bg-slate-50 rounded-md">
+                                <div>
+                                    <p className="font-medium">{project?.name}</p>
+                                    <p className="text-sm text-slate-500">{data.count} timesheets ({data.totalHours.toFixed(2)} hrs)</p>
+                                </div>
+                                <Button size="sm" onClick={() => handleGenerateInvoice(projectId)}>Create Invoice</Button>
+                            </div>
+                        )
+                    })}
+                     {unbilledByProject.length === 0 && <p className="text-slate-500 text-center py-4">No unbilled timesheets.</p>}
+                </div>
+            </div>
+        </div>
+    ), [kpis, currency, unbilledByProject, projects, handleGenerateInvoice]);
+
+    const renderInvoicesTable = useCallback(() => (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+                 <thead className="bg-slate-50">
+                    <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Invoice #</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Client</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Due Date</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                    {invoices.map(invoice => (
+                        <tr key={invoice.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 text-sm font-medium text-slate-900">INV-{String(invoice.id).padStart(4, '0')}</td>
+                            <td className="px-6 py-4 text-sm">{findClientName(invoice.clientId)}</td>
+                            <td className="px-6 py-4 text-sm"><InvoiceStatusBadge status={invoice.status} /></td>
+                            <td className="px-6 py-4 text-sm">{new Date(invoice.dueAt).toLocaleDateString()}</td>
+                            <td className="px-6 py-4 text-sm text-right font-semibold">{formatCurrency(invoice.total, currency)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+             {invoices.length === 0 && <p className="text-center py-8 text-slate-500">No invoices found.</p>}
+        </div>
+    ), [invoices, currency, findClientName]);
+    
+    const renderQuotesTable = useCallback(() => (
+         <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+                 <thead className="bg-slate-50">
+                    <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Quote #</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Client</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Valid Until</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                    {quotes.map(quote => (
+                        <tr key={quote.id} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 text-sm font-medium text-slate-900">Q-{String(quote.id).padStart(4, '0')}</td>
+                            <td className="px-6 py-4 text-sm">{findClientName(quote.clientId)}</td>
+                            <td className="px-6 py-4 text-sm"><QuoteStatusBadge status={quote.status} /></td>
+                            <td className="px-6 py-4 text-sm">{new Date(quote.validUntil).toLocaleDateString()}</td>
+                            <td className="px-6 py-4 text-sm text-right font-semibold">{formatCurrency(quote.total, currency)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+             {quotes.length === 0 && <p className="text-center py-8 text-slate-500">No quotes found.</p>}
+        </div>
+    ), [quotes, currency, findClientName]);
+    
+    const renderClients = useCallback(() => (
+         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {clients.map(client => (
+                <Card key={client.id}>
+                    <h3 className="text-lg font-semibold">{client.name}</h3>
+                    <p className="text-sm text-slate-500">{client.contactEmail}</p>
+                </Card>
+            ))}
+            {clients.length === 0 && <p className="text-center py-8 text-slate-500 col-span-full">No clients found.</p>}
+        </div>
+    ), [clients]);
+
+    const renderContent = useCallback(() => {
+        switch (activeTab) {
+            case 'overview': return renderOverview();
+            case 'invoices': return renderInvoicesTable();
+            case 'quotes': return renderQuotesTable();
+            case 'clients': return renderClients();
+            default: return null;
+        }
+    }, [activeTab, renderOverview, renderInvoicesTable, renderQuotesTable, renderClients]);
 
     return (
         <div className="space-y-6">
             <h2 className="text-3xl font-bold text-slate-800">Financials</h2>
-            {/* ... Tab Navigation ... */}
-            {/* ... Render Content based on tab ... */}
+             <Card>
+                <div className="border-b border-gray-200 mb-4">
+                    <nav className="-mb-px flex space-x-6 overflow-x-auto">
+                        {(['overview', 'invoices', 'quotes', 'clients'] as FinancialTab[]).map(tab => (
+                             <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`capitalize whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm ${activeTab === tab ? 'border-green-500 text-green-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {tab}
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+                {renderContent()}
+            </Card>
         </div>
     );
 };

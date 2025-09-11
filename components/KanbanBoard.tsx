@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Todo, TodoStatus, SubTask, User } from '../types';
+import { Todo, TodoStatus, SubTask, User, TodoPriority } from '../types';
 import { TaskCard } from './TaskCard';
 import { Button } from './ui/Button';
 
@@ -8,11 +8,12 @@ interface KanbanBoardProps {
     allTodos: Todo[];
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
-    onAddTask: (status: TodoStatus, text: string) => Promise<void>;
+    onAddTask: (taskData: { text: string; priority: TodoPriority; status: TodoStatus }) => Promise<void>;
     canManageTasks: boolean;
     user: User;
     addToast: (message: string, type: 'success' | 'error') => void;
     onReminderUpdate: () => void;
+    personnel: User[];
 }
 
 interface KanbanColumnProps {
@@ -22,14 +23,15 @@ interface KanbanColumnProps {
     allTodos: Todo[]; // For context
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
-    onAddTask: (status: TodoStatus, text: string) => Promise<void>;
+    onAddTask: (taskData: { text: string; priority: TodoPriority; status: TodoStatus }) => Promise<void>;
     canManageTasks: boolean;
     user: User;
     addToast: (message: string, type: 'success' | 'error') => void;
     onReminderUpdate: () => void;
+    personnel: User[];
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate, personnel }) => {
     const [isOver, setIsOver] = useState(false);
     
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -76,6 +78,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
                         user={user}
                         addToast={addToast}
                         onReminderUpdate={onReminderUpdate}
+                        personnel={personnel}
                     />
                 ))}
             </div>
@@ -83,7 +86,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
     );
 };
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate, personnel }) => {
     const todoTasks = todos.filter(t => t.status === TodoStatus.TODO);
     const inProgressTasks = todos.filter(t => t.status === TodoStatus.IN_PROGRESS);
     const doneTasks = todos
@@ -92,7 +95,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
             // Sort by completion date, with nulls (older tasks without the field) first.
             const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
             const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-            return dateA - dateB;
+            return dateB - dateA; // Show most recently completed first
         });
     
     return (
@@ -109,6 +112,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
                 user={user}
                 addToast={addToast}
                 onReminderUpdate={onReminderUpdate}
+                personnel={personnel}
             />
             <KanbanColumn 
                 title="In Progress"
@@ -122,6 +126,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
                 user={user}
                 addToast={addToast}
                 onReminderUpdate={onReminderUpdate}
+                personnel={personnel}
             />
             <KanbanColumn 
                 title="Done"
@@ -135,6 +140,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
                 user={user}
                 addToast={addToast}
                 onReminderUpdate={onReminderUpdate}
+                personnel={personnel}
             />
         </div>
     );

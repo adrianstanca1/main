@@ -1,5 +1,3 @@
-
-
 import {
   User, Company, Project, Todo, Timesheet, SafetyIncident, Document,
   Role, Permission, View, TimesheetStatus, TodoStatus, TodoPriority,
@@ -53,14 +51,14 @@ const subtasks1: SubTask[] = [{id: 1, text: 'Pour foundation', completed: true},
 const comments1: Comment[] = [{id: 1, creatorId: 2, text: 'Foundation poured ahead of schedule. Good work.', createdAt: new Date('2025-01-20T10:00:00Z')}];
 
 const todos: Todo[] = [
-    { id: 1, projectId: 1, creatorId: 2, text: 'Finalize structural blueprints', status: TodoStatus.DONE, priority: TodoPriority.HIGH, createdAt: new Date('2025-01-10'), completedAt: new Date('2025-01-14'), dueDate: new Date('2025-01-15') },
-    { id: 2, projectId: 1, creatorId: 2, text: 'Site preparation and excavation', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2025-01-15'), subTasks: subtasks1, comments: comments1, dependsOn: 1, dueDate: new Date() },
-    { id: 3, projectId: 1, creatorId: 1, text: 'Order HVAC systems', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2025-01-18'), dependsOn: 2, dueDate: new Date('2025-02-10') },
-    { id: 4, projectId: 1, creatorId: 2, text: 'Install plumbing rough-in', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2025-01-22'), reminderAt: new Date(Date.now() + 86400000), dueDate: new Date(Date.now() + 2 * 86400000) },
-    { id: 5, projectId: 2, creatorId: 2, text: 'Clear and grade lots 1-5', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2024-09-05'), dueDate: new Date(Date.now() - 10 * 86400000) },
+    { id: 1, projectId: 1, creatorId: 2, assigneeId: 6, text: 'Finalize structural blueprints', status: TodoStatus.DONE, priority: TodoPriority.HIGH, createdAt: new Date('2025-01-10'), completedAt: new Date('2025-01-14'), dueDate: new Date('2025-01-15') },
+    { id: 2, projectId: 1, creatorId: 2, assigneeId: 7, text: 'Site preparation and excavation', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2025-01-15'), subTasks: subtasks1, comments: comments1, dependsOn: 1, dueDate: new Date() },
+    { id: 3, projectId: 1, creatorId: 1, assigneeId: 2, text: 'Order HVAC systems', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2025-01-18'), dependsOn: 2, dueDate: new Date('2025-02-10') },
+    { id: 4, projectId: 1, creatorId: 2, assigneeId: 3, text: 'Install plumbing rough-in', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2025-01-22'), reminderAt: new Date(Date.now() + 86400000), dueDate: new Date(Date.now() + 2 * 86400000) },
+    { id: 5, projectId: 2, creatorId: 2, assigneeId: 5, text: 'Clear and grade lots 1-5', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2024-09-05'), dueDate: new Date(Date.now() - 10 * 86400000) },
     { id: 6, projectId: 2, creatorId: 2, text: 'Lay foundations for Phase 1', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2024-09-10'), dependsOn: 5 },
-    { id: 7, projectId: 3, creatorId: 1, text: 'Final safety inspection', status: TodoStatus.DONE, priority: TodoPriority.HIGH, createdAt: new Date('2024-08-01'), completedAt: new Date('2024-08-15') },
-    { id: 10, projectId: 10, creatorId: 11, text: 'Submit expansion plans to council', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2025-03-02'), dueDate: new Date('2025-03-15') },
+    { id: 7, projectId: 3, creatorId: 1, assigneeId: 6, text: 'Final safety inspection', status: TodoStatus.DONE, priority: TodoPriority.HIGH, createdAt: new Date('2024-08-01'), completedAt: new Date('2024-08-15') },
+    { id: 10, projectId: 10, creatorId: 11, assigneeId: 12, text: 'Submit expansion plans to council', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2025-03-02'), dueDate: new Date('2025-03-15') },
 ];
 
 const timesheets: Timesheet[] = [

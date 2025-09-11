@@ -3,7 +3,7 @@ import { api } from '../services/mockApi';
 import { Todo } from '../types';
 
 // Define the shape of an offline action
-type OfflineActionType = 'ADD_TODO' | 'UPDATE_TODO';
+type OfflineActionType = 'ADD_TODO' | 'UPDATE_TODO' | 'UPLOAD_DOCUMENT' | 'ADD_COMMENT';
 export interface OfflineAction {
     type: OfflineActionType;
     payload: any;
@@ -84,6 +84,12 @@ export const useOfflineSync = (addToast: (message: string, type: 'success' | 'er
                         // Note: If the ID is a string, it means the ADD_TODO for it also failed.
                         // A more complex system could map temp IDs after the ADD syncs.
                         // For now, we rely on the ADD action to eventually succeed.
+                        break;
+                    case 'UPLOAD_DOCUMENT':
+                        await api.uploadOfflineDocument(action.payload.docData, action.payload.fileData, action.payload.docData.creatorId);
+                        break;
+                    case 'ADD_COMMENT':
+                        await api.addComment(action.payload.todoId, action.payload.text, action.payload.creatorId);
                         break;
                 }
                 successCount++;

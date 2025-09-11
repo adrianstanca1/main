@@ -6,6 +6,7 @@ import { Button } from './ui/Button';
 import { KanbanBoard } from './KanbanBoard';
 import { hasPermission } from '../services/auth';
 import { queueAction, cacheTasks, getCachedTasks } from '../hooks/useOfflineSync';
+import { MapView, MapMarker } from './MapView';
 
 // --- Reusable Components for ProjectDetailView ---
 
@@ -82,18 +83,72 @@ const TaskDetailModal: React.FC<{
     personnel: User[];
     allTodos: Todo[];
     onClose: () => void;
-    onUpdateSubtask: (subtaskId: number, completed: boolean) => void;
     onAddComment: (text: string) => Promise<void>;
     onUpdateTask: (updates: Partial<Todo>) => void;
-}> = ({ task, user, projectName, personnel, allTodos, onClose, onUpdateSubtask, onAddComment, onUpdateTask }) => {
+}> = ({ task, user, projectName, personnel, allTodos, onClose, onAddComment, onUpdateTask }) => {
     const [newComment, setNewComment] = useState('');
     const [isCommenting, setIsCommenting] = useState(false);
     const userMap = useMemo(() => new Map(personnel.map(p => [p.id, p])), [personnel]);
+    
+    const [isEditing, setIsEditing] = useState(false);
+    const [editableTask, setEditableTask] = useState<Todo>(task);
+    const [editingComment, setEditingComment] = useState<{ id: number | string; text: string } | null>(null);
+
+    useEffect(() => {
+        setEditableTask(task);
+    }, [task]);
+
+    const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
 
     const getInitials = (name: string) => {
         const parts = name.split(' ');
         if (parts.length > 1) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
         return name.substring(0, 2).toUpperCase();
+    };
+    
+    const handleFieldChange = (field: keyof Todo, value: any) => {
+        setEditableTask(prev => ({ ...prev, [field]: value }));
+    };
+
+    const handleSubtaskChange = (id: number, field: 'text' | 'completed', value: string | boolean) => {
+        setEditableTask(prev => ({
+            ...prev,
+            subTasks: prev.subTasks?.map(st => st.id === id ? { ...st, [field]: value } : st)
+        }));
+    };
+
+    const handleAddSubtask = () => {
+        const newSubtask: SubTask = { id: Date.now(), text: '', completed: false };
+        setEditableTask(prev => ({
+            ...prev,
+            subTasks: [...(prev.subTasks || []), newSubtask]
+        }));
+    };
+
+    const handleDeleteSubtask = (id: number) => {
+        setEditableTask(prev => ({
+            ...prev,
+            subTasks: prev.subTasks?.filter(st => st.id !== id)
+        }));
+    };
+    
+    const handleSave = () => {
+        const updates: Partial<Todo> = {};
+        (Object.keys(editableTask) as Array<keyof Todo>).forEach(key => {
+            if (JSON.stringify(editableTask[key]) !== JSON.stringify(task[key])) {
+                (updates as any)[key] = editableTask[key];
+            }
+        });
+
+        if (Object.keys(updates).length > 0) {
+            onUpdateTask(updates);
+        }
+        setIsEditing(false);
+    };
+
+    const handleCancel = () => {
+        setEditableTask(task);
+        setIsEditing(false);
     };
 
     const handleCommentSubmit = async (e: React.FormEvent) => {
@@ -106,6 +161,37 @@ const TaskDetailModal: React.FC<{
         } finally {
             setIsCommenting(false);
         }
+    };
+
+    const handleStartEditComment = (comment: Comment) => {
+        setEditingComment({ id: comment.id, text: comment.text });
+    };
+
+    const handleCancelEditComment = () => {
+        setEditingComment(null);
+    };
+
+    const handleSaveComment = () => {
+        if (!editingComment) return;
+        const updatedComments = task.comments?.map(c => 
+            c.id === editingComment.id ? { ...c, text: editingComment.text } : c
+        );
+        onUpdateTask({ comments: updatedComments });
+        setEditingComment(null);
+    };
+
+    const handleDeleteComment = (commentId: number | string) => {
+        if (window.confirm('Are you sure you want to delete this comment?')) {
+            const updatedComments = task.comments?.filter(c => c.id !== commentId);
+            onUpdateTask({ comments: updatedComments });
+        }
+    };
+
+    const onUpdateSubtaskCheckbox = (subtaskId: number, completed: boolean) => {
+        const updatedSubtasks = editableTask.subTasks?.map(st => 
+            st.id === subtaskId ? { ...st, completed } : st
+        );
+        onUpdateTask({ subTasks: updatedSubtasks });
     };
 
     const isUpstream = (startTask: Todo, targetTask: Todo, todos: Todo[]): boolean => {
@@ -122,165 +208,163 @@ const TaskDetailModal: React.FC<{
 
     const possibleParents = allTodos.filter(p => p.id !== task.id && !isUpstream(p, task, allTodos));
     const currentParent = allTodos.find(t => t.id === task.dependsOn);
-
-    const completedSubtasks = useMemo(() => task.subTasks?.filter(st => st.completed).length || 0, [task.subTasks]);
-    const totalSubtasks = useMemo(() => task.subTasks?.length || 0, [task.subTasks]);
+    const completedSubtasks = useMemo(() => editableTask.subTasks?.filter(st => st.completed).length || 0, [editableTask.subTasks]);
+    const totalSubtasks = useMemo(() => editableTask.subTasks?.length || 0, [editableTask.subTasks]);
     const subtaskProgress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
+    const dueDateForInput = editableTask.dueDate ? new Date(editableTask.dueDate).toISOString().split('T')[0] : '';
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
             <Card className="w-full max-w-2xl h-auto max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold mb-2">{task.text}</h3>
+                 <div className="flex justify-between items-start mb-2">
+                    {isEditing ? (
+                        <textarea value={editableTask.text} onChange={(e) => handleFieldChange('text', e.target.value)} className="text-xl font-bold w-full p-1 border rounded-md" rows={2}/>
+                    ) : (
+                        <h3 className="text-xl font-bold">{task.text}</h3>
+                    )}
+                    {canManageTasks && !isEditing && (
+                        <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
+                    )}
+                </div>
                 <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
                 <div className="flex-grow overflow-y-auto pr-2 space-y-6">
-                    {hasPermission(user, Permission.MANAGE_TASKS) && (
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4 pb-4 border-b">
                          <div>
-                            <h4 className="font-semibold text-slate-700 mb-2">Dependency</h4>
-                            {currentParent ? (
-                                <div className="flex items-center justify-between p-2 bg-slate-50 rounded-md text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <span>Blocks: <span className="font-medium">{currentParent.text}</span></span>
-                                        <TodoStatusBadge status={currentParent.status} />
-                                    </div>
-                                    <button onClick={() => onUpdateTask({ dependsOn: undefined })} className="text-red-500 text-xs font-semibold hover:underline">Remove</button>
-                                </div>
-                            ) : (
-                                <select onChange={e => onUpdateTask({ dependsOn: e.target.value ? (typeof e.target.value === 'string' && e.target.value.startsWith('offline_') ? e.target.value : parseInt(e.target.value, 10)) : undefined })} value={task.dependsOn || ''} className="w-full p-2 border rounded-md bg-white">
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
+                            {isEditing ? (
+                                <select value={editableTask.status} onChange={(e) => handleFieldChange('status', e.target.value as TodoStatus)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
+                                    {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                </select>
+                            ) : (<div className="mt-1"><TodoStatusBadge status={task.status} /></div>)}
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Priority</label>
+                            {isEditing ? (
+                                <select value={editableTask.priority} onChange={(e) => handleFieldChange('priority', e.target.value as TodoPriority)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
+                                    {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                </select>
+                            ) : (<p className="font-medium mt-1">{task.priority}</p>)}
+                        </div>
+                         <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Assignee</label>
+                            {isEditing ? (
+                                <select value={editableTask.assigneeId || ''} onChange={(e) => handleFieldChange('assigneeId', e.target.value ? parseInt(e.target.value) : undefined)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
+                                    <option value="">Unassigned</option>
+                                    {personnel.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            ) : (<p className="font-medium mt-1">{userMap.get(task.assigneeId)?.name || 'Unassigned'}</p>)}
+                        </div>
+                         <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Due Date</label>
+                            {isEditing ? (
+                                <input type="date" value={dueDateForInput} onChange={(e) => handleFieldChange('dueDate', e.target.value ? new Date(e.target.value) : undefined)} className="w-full p-1 border rounded-md mt-1 text-sm"/>
+                            ) : (<p className="font-medium mt-1">{task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'Not set'}</p>)}
+                        </div>
+                         <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Dependency</label>
+                            {isEditing ? (
+                                 <select onChange={e => handleFieldChange('dependsOn', e.target.value ? (typeof e.target.value === 'string' && e.target.value.startsWith('offline_') ? e.target.value : parseInt(e.target.value, 10)) : undefined)} value={editableTask.dependsOn || ''} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
                                     <option value="">None</option>
                                     {possibleParents.map(p => (
                                         <option key={p.id as string} value={p.id as string}>Task #{typeof p.id === 'number' ? p.id.toString().slice(-4) : '...'}: {p.text}</option>
                                     ))}
                                 </select>
-                            )}
+                            ) : (<p className="font-medium mt-1">{currentParent?.text || 'None'}</p>)}
                         </div>
-                    )}
-                    {task.subTasks && task.subTasks.length > 0 && (
-                        <div>
-                            <div className="flex justify-between items-center mb-2">
-                                <h4 className="font-semibold text-slate-700">Sub-tasks</h4>
-                                <span className="text-sm text-slate-500">{completedSubtasks} / {totalSubtasks}</span>
-                            </div>
+                    </div>
+
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                            <h4 className="font-semibold text-slate-700">Sub-tasks</h4>
+                            {totalSubtasks > 0 && <span className="text-sm text-slate-500">{completedSubtasks} / {totalSubtasks}</span>}
+                        </div>
+                        {totalSubtasks > 0 && (
                             <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
                                 <div className="bg-green-500 h-2 rounded-full transition-all duration-300" style={{ width: `${subtaskProgress}%` }}></div>
                             </div>
-                            <div className="space-y-2">
-                                {task.subTasks.map(st => (
-                                    <div key={st.id} className="flex items-center gap-3 bg-slate-50 p-2 rounded-md">
-                                        <input type="checkbox" id={`subtask-${st.id}`} checked={st.completed} onChange={() => onUpdateSubtask(st.id, !st.completed)} className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" aria-label={st.text} />
-                                        <label htmlFor={`subtask-${st.id}`} className={`flex-grow ${st.completed ? 'line-through text-slate-500' : ''}`}>{st.text}</label>
-                                    </div>
-                                ))}
+                        )}
+                        <div className="space-y-2">
+                            {editableTask.subTasks?.map(st => (
+                                <div key={st.id} className="flex items-center gap-3 bg-slate-50 p-2 rounded-md">
+                                    <input type="checkbox" id={`subtask-${st.id}`} checked={st.completed} onChange={(e) => isEditing ? handleSubtaskChange(st.id, 'completed', e.target.checked) : onUpdateSubtaskCheckbox(st.id, e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" aria-label={st.text}/>
+                                    {isEditing ? (
+                                        <>
+                                            <input type="text" value={st.text} onChange={(e) => handleSubtaskChange(st.id, 'text', e.target.value)} className="flex-grow p-1 border rounded-md text-sm"/>
+                                            <button onClick={() => handleDeleteSubtask(st.id)} className="text-red-500 text-xs font-bold hover:text-red-700 p-1">X</button>
+                                        </>
+                                    ) : (<label htmlFor={`subtask-${st.id}`} className={`flex-grow ${st.completed ? 'line-through text-slate-500' : ''}`}>{st.text}</label>)}
+                                </div>
+                            ))}
+                        </div>
+                        {isEditing && <Button size="sm" variant="secondary" onClick={handleAddSubtask} className="mt-2">+ Add Sub-task</Button>}
+                    </div>
+
+                    {!isEditing && (
+                        <div>
+                            <h4 className="font-semibold text-slate-700 mb-2">Comments</h4>
+                            <div className="space-y-3">
+                                {task.comments?.map(comment => {
+                                    const canEditComment = canManageTasks || comment.creatorId === user.id;
+                                    return (
+                                        <div key={comment.id} className="flex items-start gap-3 group">
+                                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white font-bold text-xs">
+                                                {getInitials(userMap.get(comment.creatorId)?.name || '?')}
+                                            </div>
+                                            <div className="flex-grow">
+                                                <div className="flex justify-between items-center">
+                                                    <div className="flex items-center gap-2 text-sm mb-1">
+                                                        <span className="font-semibold">{userMap.get(comment.creatorId)?.name || '...'}</span>
+                                                        <span className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleString()}</span>
+                                                    </div>
+                                                    {canEditComment && !editingComment && (
+                                                        <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                                            <button onClick={() => handleStartEditComment(comment)} title="Edit comment" className="p-1 rounded hover:bg-slate-200">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                                                            </button>
+                                                            <button onClick={() => handleDeleteComment(comment.id)} title="Delete comment" className="p-1 rounded hover:bg-slate-200">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                {editingComment?.id === comment.id ? (
+                                                    <div>
+                                                        <textarea value={editingComment.text} onChange={e => setEditingComment(c => c ? { ...c, text: e.target.value } : null)} className="w-full p-2 border rounded-md text-sm" />
+                                                        <div className="flex gap-2 mt-1">
+                                                            <Button size="sm" variant="secondary" onClick={handleCancelEditComment}>Cancel</Button>
+                                                            <Button size="sm" onClick={handleSaveComment}>Save</Button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p className="bg-slate-100 p-2 rounded-lg text-slate-800">{comment.text}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                                {(!task.comments || task.comments.length === 0) && <p className="text-sm text-slate-400">No comments yet.</p>}
                             </div>
                         </div>
                     )}
-                    <div>
-                        <h4 className="font-semibold text-slate-700 mb-2">Comments</h4>
-                        <div className="space-y-3">
-                            {task.comments?.map(comment => (
-                                <div key={comment.id} className="flex items-start gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white font-bold text-xs">
-                                        {getInitials(userMap.get(comment.creatorId)?.name || '?')}
-                                    </div>
-                                    <div className="flex-grow">
-                                        <div className="flex items-center gap-2 text-sm mb-1">
-                                            <span className="font-semibold">{userMap.get(comment.creatorId)?.name || '...'}</span>
-                                            <span className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleString()}</span>
-                                        </div>
-                                        <p className="bg-slate-100 p-2 rounded-lg text-slate-800 whitespace-pre-wrap">{comment.text}</p>
-                                    </div>
-                                </div>
-                            ))}
-                             {(!task.comments || task.comments.length === 0) && <p className="text-sm text-slate-400">No comments yet.</p>}
-                        </div>
-                    </div>
                 </div>
-                <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
-                    <textarea value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md resize-none" rows={2} disabled={isCommenting} />
-                    <Button type="submit" isLoading={isCommenting} disabled={!newComment.trim()}>Send</Button>
-                </form>
+                 {isEditing ? (
+                    <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+                        <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
+                        <Button onClick={handleSave}>Save Changes</Button>
+                    </div>
+                ) : (
+                    <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
+                        <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md" disabled={isCommenting} />
+                        <Button type="submit" isLoading={isCommenting} disabled={!newComment.trim()}>Send</Button>
+                    </form>
+                )}
             </Card>
         </div>
     );
 };
 
-const ProjectInformationCard: React.FC<{ project: Project }> = ({ project }) => {
-    const infoItems = [
-        { icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>, label: 'Project Name', value: project.name },
-        { icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>, label: 'Address', value: project.location.address },
-        { icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>, label: 'Start Date', value: new Date(project.startDate).toLocaleDateString() },
-        { icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>, label: 'Project Type', value: project.projectType },
-        { icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>, label: 'Work Classification', value: project.workClassification },
-        { icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M9 12a3 3 0 116 0 3 3 0 01-6 0z" /></svg>, label: 'Geofence Radius', value: project.geofenceRadius ? `${project.geofenceRadius} meters` : 'Not set' },
-    ];
-    return (
-        <Card>
-            <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-bold">Project Information</h3>
-                <Button variant="ghost" size="sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
-                    Edit
-                </Button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {infoItems.map(item => (
-                    <div key={item.label} className="flex items-start gap-4">
-                        <div className="flex-shrink-0 text-slate-500">{item.icon}</div>
-                        <div>
-                            <p className="text-sm text-slate-500">{item.label}</p>
-                            <p className="font-medium text-slate-800">{item.value}</p>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
-    );
-};
-
-const ProjectHeader: React.FC<{
-    project: Project;
-    personnelCount: number;
-    onBack: () => void;
-}> = ({ project, personnelCount, onBack }) => {
-    const statusStyles: Record<Project['status'], string> = { 
-        'Active': 'bg-green-500/90', 
-        'On Hold': 'bg-yellow-500/90', 
-        'Completed': 'bg-slate-500/90' 
-    };
-
-    return (
-        <div className="relative h-64 w-full rounded-2xl overflow-hidden shadow-lg -mx-6 lg:-mx-8 mt-[-1.5rem] lg:mt-[-2rem]">
-            <img src={project.imageUrl} alt={project.name} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-            <div className="absolute top-4 left-4 z-10">
-                <Button variant="secondary" onClick={onBack} className="bg-white/20 text-white hover:bg-white/30 border-white/30">
-                    &larr; Back to Projects
-                </Button>
-            </div>
-            <div className="absolute bottom-0 left-0 p-6 text-white w-full">
-                <div className="flex justify-between items-end">
-                    <div>
-                        <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full uppercase mb-2 ${statusStyles[project.status]}`}>{project.status}</span>
-                        <h2 className="text-3xl md:text-4xl font-bold" style={{textShadow: '1px 1px 3px rgba(0,0,0,0.7)'}}>{project.name}</h2>
-                        <div className="flex items-center gap-2 mt-1 text-slate-200">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /></svg>
-                            <span>{project.location.address}</span>
-                        </div>
-                    </div>
-                    <div className="text-right flex-shrink-0 hidden sm:block">
-                        <div className="flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6.07 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 017 16v1H.93z" /></svg>
-                            <span className="font-semibold">{personnelCount} Workers</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- Main View Component ---
-
-interface ProjectDetailProps {
+// --- Main Component ---
+interface ProjectDetailViewProps {
     project: Project;
     user: User;
     onBack: () => void;
@@ -289,156 +373,206 @@ interface ProjectDetailProps {
     onStartChat: (user: User) => void;
 }
 
-export const ProjectDetailView: React.FC<ProjectDetailProps> = ({ project, user, onBack, addToast, isOnline, onStartChat }) => {
-    const [loading, setLoading] = useState(true);
-    const [personnel, setPersonnel] = useState<User[]>([]);
+export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, user, onBack, addToast, isOnline, onStartChat }) => {
     const [todos, setTodos] = useState<Todo[]>([]);
-    const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
+    const [personnel, setPersonnel] = useState<User[]>([]);
+    const [loading, setLoading] = useState(true);
     const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
+    const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
     
-    const canManageTasks = useMemo(() => hasPermission(user, Permission.MANAGE_TASKS), [user]);
+    const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
 
     const fetchData = useCallback(async () => {
-        setLoading(true);
         try {
             if (isOnline) {
-                if (!user.companyId) return;
-                const [personnelData, todosData] = await Promise.all([
-                    api.getUsersByProject(project.id, user.companyId),
+                const [todosData, personnelData] = await Promise.all([
                     api.getTodosByProject(project.id),
+                    api.getUsersByProject(project.id, user.companyId!)
                 ]);
-                setPersonnel(personnelData);
                 setTodos(todosData);
+                setPersonnel(personnelData);
                 cacheTasks(project.id, todosData);
             } else {
-                addToast("Offline: Displaying cached task data.", 'success');
-                const cachedTodos = getCachedTasks(project.id) || [];
-                setTodos(cachedTodos);
-                setPersonnel([]);
+                const cached = getCachedTasks(project.id);
+                if (cached) setTodos(cached);
+                // Can't fetch personnel offline, might need a cache for that too
+                addToast("Showing cached task data.", "success");
             }
         } catch (error) {
-            addToast('Failed to load project details.', 'error');
+            addToast("Failed to load project details.", "error");
         } finally {
             setLoading(false);
         }
     }, [project.id, user.companyId, addToast, isOnline]);
 
     useEffect(() => {
+        setLoading(true);
         fetchData();
-        const handleDataChanged = () => fetchData();
-        window.addEventListener('datachanged', handleDataChanged);
-        return () => window.removeEventListener('datachanged', handleDataChanged);
     }, [fetchData]);
     
-    const handleAddTask = async (taskData: { text: string; priority: TodoPriority; status: TodoStatus; }) => {
-       const taskPayload = { ...taskData, projectId: project.id, creatorId: user.id };
-        if (isOnline) {
-            const newTask = await api.addTodo(taskPayload, user.id);
-            setTodos(prev => [newTask, ...prev]);
-            addToast('Task added!', 'success');
-        } else {
-            const tempId = `offline_${Date.now()}`;
-            const optimisticTask: Todo = { ...taskData, id: tempId, createdAt: new Date(), isOffline: true, projectId: project.id, creatorId: user.id };
-            setTodos(prev => [optimisticTask, ...prev]);
-            queueAction({ type: 'ADD_TODO', payload: taskPayload, projectId: project.id });
-            addToast('Task saved locally.', 'success');
-        }
-    };
-    
-    const handleUpdateTodo = async (todoId: number | string, updates: Partial<Todo>) => {
-        const originalTodos = todos;
-        setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updates, isOffline: !isOnline } : t));
-        if (isOnline) {
-            try {
-                await api.updateTodo(todoId, updates, user.id);
-            } catch (error) {
-                addToast(String(error), 'error');
-                setTodos(originalTodos);
-            }
-        } else {
-            queueAction({ type: 'UPDATE_TODO', payload: { id: todoId, updates, actorId: user.id }, projectId: project.id });
-             addToast('Task update saved locally.', 'success');
-        }
-    };
-    
-    const handleUpdateTaskDetails = async (updates: Partial<Todo>) => {
-        if (!selectedTask) return;
-        const updatedTask = { ...selectedTask, ...updates };
-        setSelectedTask(updatedTask);
-        await handleUpdateTodo(selectedTask.id, updates);
-    };
+    const handleUpdateTask = async (taskId: number | string, updates: Partial<Todo>) => {
+        const originalTasks = [...todos];
+        const updatedTask = { ...todos.find(t => t.id === taskId)!, ...updates };
+        setTodos(prev => prev.map(t => t.id === taskId ? updatedTask : t));
+        if (selectedTask?.id === taskId) setSelectedTask(updatedTask);
 
-    const handleUpdateSubtask = async (subtaskId: number, completed: boolean) => {
-        if (!selectedTask) return;
-        const originalTask = { ...selectedTask };
-        const updatedSubtasks = originalTask.subTasks?.map(st => st.id === subtaskId ? { ...st, completed } : st) || [];
-        const allSubtasksDone = updatedSubtasks.length > 0 && updatedSubtasks.every(st => st.completed);
-        const updates: Partial<Todo> = { subTasks: updatedSubtasks };
-        if (allSubtasksDone && originalTask.status !== TodoStatus.DONE) {
-            updates.status = TodoStatus.DONE;
-        } else if (!allSubtasksDone && originalTask.status === TodoStatus.DONE) {
-            updates.status = TodoStatus.IN_PROGRESS;
-        }
-        const updatedTaskState = { ...originalTask, ...updates };
-        setSelectedTask(updatedTaskState);
-        setTodos(prev => prev.map(t => t.id === originalTask.id ? updatedTaskState : t));
         try {
-            await api.updateTodo(originalTask.id, updates, user.id);
-            addToast('Sub-task updated.', 'success');
+            if (isOnline) {
+                await api.updateTodo(taskId, updates, user.id);
+            } else {
+                queueAction({
+                    type: 'UPDATE_TODO',
+                    payload: { id: taskId, updates, actorId: user.id },
+                    projectId: project.id
+                });
+            }
+            addToast("Task updated.", "success");
         } catch (error) {
-            addToast('Failed to update sub-task.', 'error');
-            setSelectedTask(originalTask);
-            setTodos(prev => prev.map(t => t.id === originalTask.id ? originalTask : t));
+            addToast("Failed to update task.", "error");
+            setTodos(originalTasks); // Revert on failure
+            if (selectedTask?.id === taskId) setSelectedTask(originalTasks.find(t => t.id === taskId) || null);
         }
     };
+    
+    const handleAddTask = async (taskData: { text: string; priority: TodoPriority; status: TodoStatus; }) => {
+        const optimisticTodo: Todo = {
+            ...taskData,
+            id: `offline_${Date.now()}`,
+            projectId: project.id,
+            creatorId: user.id,
+            createdAt: new Date(),
+            isOffline: true,
+        };
+        setTodos(prev => [optimisticTodo, ...prev]);
 
+        try {
+            if (isOnline) {
+                const newTodo = await api.addTodo({ ...taskData, projectId: project.id, creatorId: user.id }, user.id);
+                setTodos(prev => prev.map(t => t.id === optimisticTodo.id ? newTodo : t));
+            } else {
+                queueAction({
+                    type: 'ADD_TODO',
+                    payload: { ...taskData, projectId: project.id, creatorId: user.id },
+                    projectId: project.id,
+                });
+            }
+            addToast("Task added successfully.", "success");
+        } catch (error) {
+            addToast("Failed to add task.", "error");
+            setTodos(prev => prev.filter(t => t.id !== optimisticTodo.id));
+        }
+    };
+    
     const handleAddComment = async (text: string) => {
         if (!selectedTask) return;
-        const newComment = await api.addComment(selectedTask.id, text, user.id);
-        const updatedTask = { ...selectedTask, comments: [...(selectedTask.comments || []), newComment] };
-        setSelectedTask(updatedTask);
-        setTodos(prev => prev.map(t => t.id === selectedTask.id ? updatedTask : t));
-        addToast('Comment added.', 'success');
+        const optimisticComment: Comment = { id: `offline_comment_${Date.now()}`, creatorId: user.id, text, createdAt: new Date(), isOffline: true };
+        const updatedComments = [...(selectedTask.comments || []), optimisticComment];
+        handleUpdateTask(selectedTask.id, { comments: updatedComments }); // Optimistic update
     };
+
+    const taskStats = useMemo(() => {
+        const total = todos.length;
+        const done = todos.filter(t => t.status === TodoStatus.DONE).length;
+        const progress = total > 0 ? (done / total) * 100 : 0;
+        return { total, done, progress };
+    }, [todos]);
     
+    const mapMarkers = useMemo((): MapMarker[] => {
+        return [{
+            lat: project.location.lat,
+            lng: project.location.lng,
+            radius: project.geofenceRadius,
+            popupContent: project.name,
+        }]
+    }, [project]);
+
+    if (loading) return <Card><p>Loading project details...</p></Card>;
+
     return (
-        <div className="relative pb-24">
+        <div className="space-y-6">
+            {selectedTask && (
+                <TaskDetailModal
+                    task={selectedTask}
+                    user={user}
+                    projectName={project.name}
+                    personnel={personnel}
+                    allTodos={todos}
+                    onClose={() => setSelectedTask(null)}
+                    onUpdateTask={(updates) => handleUpdateTask(selectedTask.id, updates)}
+                    onAddComment={handleAddComment}
+                />
+            )}
             {isAddTaskModalOpen && <AddTaskModal onClose={() => setIsAddTaskModalOpen(false)} onAdd={handleAddTask} />}
-            {selectedTask && <TaskDetailModal task={selectedTask} user={user} projectName={project.name} personnel={personnel} allTodos={todos} onClose={() => setSelectedTask(null)} onUpdateSubtask={handleUpdateSubtask} onAddComment={handleAddComment} onUpdateTask={handleUpdateTaskDetails} />}
             
-            <ProjectHeader project={project} personnelCount={personnel.length} onBack={onBack} />
-            
-            <div className="space-y-8 mt-8">
-                <ProjectInformationCard project={project} />
+            <div className="flex justify-between items-center">
                 <div>
-                     <h3 className="text-2xl font-bold mb-4">Task Board</h3>
-                     {loading ? (
-                        <Card><p>Loading tasks...</p></Card>
-                    ) : (
-                        <KanbanBoard 
-                            todos={todos} 
-                            allTodos={todos} 
-                            onUpdateTaskStatus={(id, status) => handleUpdateTodo(id, { status })} 
-                            onSelectTask={setSelectedTask} 
-                            onAddTask={async () => {}} 
-                            canManageTasks={canManageTasks}
-                            user={user}
-                            addToast={addToast}
-                            onReminderUpdate={fetchData}
-                        />
-                    )}
+                    <Button onClick={onBack} variant="ghost" className="mb-2 -ml-4">&larr; All Projects</Button>
+                    <h2 className="text-3xl font-bold text-slate-800">{project.name}</h2>
+                    <p className="text-slate-500">{project.location.address}</p>
                 </div>
+                {canManageTasks && <Button onClick={() => setIsAddTaskModalOpen(true)}>+ Add Task</Button>}
             </div>
 
-            {canManageTasks && (
-                <div className="fixed bottom-8 right-8 z-40">
-                    <Button size="lg" onClick={() => setIsAddTaskModalOpen(true)} className="rounded-full h-16 w-16 shadow-lg" aria-label="Add new task">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    </Button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                 <Card>
+                    <h4 className="text-sm font-medium text-slate-500">Status</h4>
+                    <p className={`text-2xl font-bold ${project.status === 'Active' ? 'text-green-600' : 'text-slate-800'}`}>{project.status}</p>
+                </Card>
+                <Card>
+                    <h4 className="text-sm font-medium text-slate-500">Task Progress</h4>
+                    <p className="text-2xl font-bold">{taskStats.done} / {taskStats.total}</p>
+                    <div className="w-full bg-slate-200 rounded-full h-2 mt-1">
+                        <div className="bg-green-500 h-2 rounded-full" style={{ width: `${taskStats.progress}%` }}></div>
+                    </div>
+                </Card>
+                <Card>
+                    <h4 className="text-sm font-medium text-slate-500">Budget</h4>
+                    <p className="text-2xl font-bold">{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(project.budget)}</p>
+                </Card>
+                <Card>
+                    <h4 className="text-sm font-medium text-slate-500">Team Size</h4>
+                    <p className="text-2xl font-bold">{personnel.length} Members</p>
+                </Card>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                <div className="lg:col-span-1 space-y-6">
+                    <Card>
+                        <h3 className="font-semibold text-lg mb-2">Location</h3>
+                        <MapView markers={mapMarkers} height="h-60" />
+                    </Card>
+                    <Card>
+                        <h3 className="font-semibold text-lg mb-4">Project Personnel</h3>
+                        <div className="space-y-3">
+                            {personnel.map(p => (
+                                <div key={p.id} className="flex justify-between items-center">
+                                    <span>{p.name}</span>
+                                    {user.id !== p.id && (
+                                        <Button size="sm" variant="ghost" onClick={() => onStartChat(p)}>
+                                            Chat
+                                        </Button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
                 </div>
-            )}
+
+                <div className="lg:col-span-2">
+                     <KanbanBoard
+                        todos={todos}
+                        allTodos={todos}
+                        onUpdateTaskStatus={(id, status) => handleUpdateTask(id, { status })}
+                        onSelectTask={setSelectedTask}
+                        onAddTask={handleAddTask}
+                        canManageTasks={canManageTasks}
+                        user={user}
+                        addToast={addToast}
+                        onReminderUpdate={fetchData}
+                        personnel={personnel}
+                    />
+                </div>
+            </div>
         </div>
     );
 };

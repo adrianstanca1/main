@@ -1,8 +1,3 @@
-
-// This file mocks a backend API for the application.
-// In a real-world scenario, this would be replaced with actual HTTP requests to a server.
-
-// FIX: Added InvoiceStatus to the import list to resolve a type error.
 import {
   User, Company, Project, Todo, Timesheet, SafetyIncident, Document,
   Role, Permission, View, TimesheetStatus, TodoStatus, TodoPriority,
@@ -196,7 +191,31 @@ export const api = {
       if (status === TimesheetStatus.REJECTED) {
           ts.comment = reason;
       }
+      const action = status === TimesheetStatus.APPROVED ? 'TIMESHEET_APPROVED' : 'TIMESHEET_REJECTED';
+      addAuditLog({ actorId, action, target: { type: 'User', id: ts.userId, name: `Timesheet #${ts.id}`}, projectId: ts.projectId });
       return ts;
+  },
+   updateTimesheet: async (timesheetId: number, updates: Partial<Timesheet>, actorId: number): Promise<Timesheet> => {
+    await simulateDelay(400);
+    const index = DB.timesheets.findIndex(t => t.id === timesheetId);
+    if (index === -1) throw new Error("Timesheet not found");
+
+    const originalTimesheet = DB.timesheets[index];
+    if (originalTimesheet.status !== TimesheetStatus.PENDING) {
+        throw new Error("Only pending timesheets can be edited.");
+    }
+    
+    const updatedTimesheet = { ...originalTimesheet, ...updates };
+    DB.timesheets[index] = updatedTimesheet;
+
+    addAuditLog({
+        actorId,
+        action: 'TIMESHEET_UPDATED',
+        target: { type: 'User', id: originalTimesheet.userId, name: `Timesheet #${originalTimesheet.id}`},
+        projectId: updatedTimesheet.projectId
+    });
+
+    return updatedTimesheet;
   },
   clockIn: async (userId: number, projectId: number, location: Location, workType: WorkType, photo?: File): Promise<Timesheet> => {
       await simulateDelay(500);
@@ -303,6 +322,33 @@ export const api = {
         doc.status = DocumentStatus.APPROVED;
         doc.url = `/mock-assets/docs/${doc.name}`;
     }, 2000); // Simulate scanning time
+  },
+  uploadOfflineDocument: async (docData: Omit<Document, 'id' | 'url' | 'status' | 'uploadedAt' | 'version'>, fileData: { base64: string, mimeType: string }, actorId: number): Promise<Document> => {
+    // 1. Create the document stub
+    const newDoc: Document = {
+      ...docData,
+      id: DB.documents.length + 100,
+      url: '',
+      status: DocumentStatus.UPLOADING,
+      uploadedAt: new Date(),
+      version: 1,
+    };
+    DB.documents.unshift(newDoc);
+    
+    // 2. Simulate upload, scan, and approval
+    await simulateDelay(1500); // Simulate upload time from server
+    const doc = DB.documents.find(d => d.id === newDoc.id);
+    if (!doc) throw new Error("Document disappeared after creation");
+
+    doc.status = DocumentStatus.SCANNING;
+    
+    await simulateDelay(2000); // Simulate scanning time
+    doc.status = DocumentStatus.APPROVED;
+    doc.url = `/mock-assets/docs/${doc.name}`; // Set final URL
+
+    addAuditLog({ actorId, action: 'DOCUMENT_UPLOADED', target: { type: 'Document', id: doc.id, name: doc.name }, projectId: doc.projectId });
+
+    return doc;
   },
   getDocumentAcksForUser: async(userId: number): Promise<DocumentAcknowledgement[]> => {
       await simulateDelay();

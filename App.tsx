@@ -18,8 +18,8 @@ import { ProjectsView } from './components/ProjectsView';
 import { ChatView } from './components/ChatView';
 import { CommandPalette } from './components/CommandPalette';
 import { AISearchModal } from './components/AISearchModal';
-import { GeminiCLI } from './components/GeminiCLI';
 import { TemplatesView } from './components/TemplatesView';
+import { AllTasksView } from './components/AllTasksView';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useOfflineSync } from './hooks/useOfflineSync';
 import { useReminderService } from './hooks/useReminderService';
@@ -40,7 +40,6 @@ const App: React.FC = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [isAiSearchOpen, setIsAiSearchOpen] = useState(false);
-    const [isGeminiCLIOpen, setIsGeminiCLIOpen] = useState(false);
     const [pendingTimesheetCount, setPendingTimesheetCount] = useState(0);
     const [openIncidentCount, setOpenIncidentCount] = useState(0);
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -54,6 +53,19 @@ const App: React.FC = () => {
     useEffect(() => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
     }, [theme]);
+
+    useEffect(() => {
+        if (user?.companyId) {
+            api.getCompanySettings(user.companyId)
+                .then(settings => {
+                    setTheme(settings.theme);
+                })
+                .catch(err => {
+                    console.error("Failed to load user theme setting.", err);
+                    addToast("Could not load theme settings.", "error");
+                });
+        }
+    }, [user]);
 
     useEffect(() => {
         if (!user) return;
@@ -169,7 +181,7 @@ const App: React.FC = () => {
             case 'projects':
                 return <ProjectsView user={user!} addToast={addToast} onSelectProject={handleSelectProject} />;
             case 'documents':
-                return <DocumentsView user={user!} addToast={addToast} />;
+                return <DocumentsView user={user!} addToast={addToast} isOnline={isOnline} />;
             case 'safety':
                  return <SafetyView user={user!} addToast={addToast} />;
             case 'timesheets':
@@ -190,6 +202,8 @@ const App: React.FC = () => {
                 return <EquipmentView user={user!} addToast={addToast} />;
             case 'templates':
                 return <TemplatesView user={user!} addToast={addToast} />;
+            case 'all-tasks':
+                return <AllTasksView user={user!} addToast={addToast} isOnline={isOnline} />;
             case 'map':
                 return <ProjectsMapView user={user!} addToast={addToast} />;
             default:
@@ -228,10 +242,6 @@ const App: React.FC = () => {
                     user={user}
                     onClose={() => setIsCommandPaletteOpen(false)}
                     setActiveView={setActiveView}
-                    onOpenGeminiCLI={() => {
-                        setIsCommandPaletteOpen(false);
-                        setIsGeminiCLIOpen(true);
-                    }}
                 />
             )}
             {isAiSearchOpen && (
@@ -240,11 +250,6 @@ const App: React.FC = () => {
                     currentProject={selectedProject}
                     onClose={() => setIsAiSearchOpen(false)}
                     addToast={addToast}
-                />
-            )}
-            {isGeminiCLIOpen && (
-                <GeminiCLI
-                    onClose={() => setIsGeminiCLIOpen(false)}
                 />
             )}
             <div className="fixed bottom-4 right-4 z-[100] space-y-2">

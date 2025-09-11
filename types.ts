@@ -26,6 +26,7 @@ export type View =
   | 'financials'
   | 'equipment'
   | 'templates'
+  | 'all-tasks'
   | 'map';
 
 // --- Permissions ---
@@ -214,16 +215,18 @@ export interface SubTask {
 }
 
 export interface Comment {
-    id: number;
+    id: number | string;
     creatorId: number;
     text: string;
     createdAt: Date;
+    isOffline?: boolean;
 }
 
 export interface Todo {
     id: number | string; // string for optimistic offline tasks
     projectId: number;
     creatorId: number;
+    assigneeId?: number;
     text: string;
     status: TodoStatus;
     priority: TodoPriority;
@@ -293,6 +296,7 @@ export interface Document {
     uploadedAt: Date;
     creatorId: number;
     version: number;
+    isOffline?: boolean;
 }
 
 export interface DocumentAcknowledgement {
@@ -367,6 +371,7 @@ export type AuditLogAction =
   | 'SAFETY_INCIDENT_REPORTED'
   | 'TIMESHEET_APPROVED'
   | 'TIMESHEET_REJECTED'
+  | 'TIMESHEET_UPDATED'
   | 'INVOICE_GENERATED_FROM_TIMESHEETS';
 
 

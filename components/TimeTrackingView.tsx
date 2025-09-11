@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-// FIX: Add View, Location, and CompanySettings to imports to fix type mismatches and use settings.
 import { User, Project, Timesheet, WorkType, View, Location, CompanySettings } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
@@ -9,7 +8,6 @@ import { useGeolocation, Geofence, GeofenceEvent } from '../hooks/useGeolocation
 interface TimeTrackingViewProps {
   user: User;
   addToast: (message: string, type: 'success' | 'error') => void;
-  // FIX: Changed setActiveView prop to accept View type instead of string.
   setActiveView: (view: View) => void;
 }
 
@@ -19,6 +17,39 @@ const formatTimer = (milliseconds: number): string => {
     const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
     const seconds = String(totalSeconds % 60).padStart(2, '0');
     return `${hours}:${minutes}:${seconds}`;
+};
+
+// --- Sub-components (moved outside TimeTrackingView to prevent re-renders and potential hook errors) ---
+
+const GeofenceWarningBanner: React.FC<{ isVisible: boolean; projectName?: string }> = ({ isVisible, projectName }) => {
+    if (!isVisible) {
+        return null;
+    }
+    return (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded-r-md" role="alert">
+            <div className="flex">
+                <div className="py-1">
+                    <svg className="fill-current h-6 w-6 text-yellow-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM9 5v6h2V5H9zm0 8v2h2v-2H9z"/></svg>
+                </div>
+                <div>
+                    <p className="font-bold">Geofence Alert</p>
+                    <p className="text-sm">You appear to be outside the project site for '{projectName}'. Your timesheet may be flagged for review.</p>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const GeofenceStatusIndicator: React.FC<{ isVisible: boolean; isInside: boolean }> = ({ isVisible, isInside }) => {
+    if (!isVisible) {
+        return null;
+    }
+    return (
+        <div className={`mt-2 text-xs flex items-center justify-center gap-1.5 ${isInside ? 'text-green-600' : 'text-yellow-600'}`}>
+            <div className={`w-2 h-2 rounded-full ${isInside ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+            {isInside ? 'Inside project geofence' : 'Outside project geofence'}
+        </div>
+    );
 };
 
 export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToast, setActiveView }) => {
@@ -195,58 +226,30 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToa
         if (!activeTimesheet || !activeTimesheet.projectId || !activeProject?.geofenceRadius) {
             return false;
         }
-        // Check if the set of inside geofences DOES NOT include the active project's ID
         return !insideGeofenceIds.has(activeTimesheet.projectId);
     }, [activeTimesheet, insideGeofenceIds, activeProject]);
 
     const isOnBreak = activeTimesheet?.breaks.some(b => b.endTime === null);
     const totalBreakMillis = activeTimesheet?.breaks
         .reduce((total, b) => total + ((b.endTime ? new Date(b.endTime).getTime() : new Date().getTime()) - new Date(b.startTime).getTime()), 0) || 0;
-    
-    const GeofenceWarningBanner: React.FC = () => {
-        if (!isClockedInAndOutsideGeofence) {
-            return null;
-        }
-        return (
-            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded-r-md" role="alert">
-                <div className="flex">
-                    <div className="py-1">
-                        <svg className="fill-current h-6 w-6 text-yellow-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM9 5v6h2V5H9zm0 8v2h2v-2H9z"/></svg>
-                    </div>
-                    <div>
-                        <p className="font-bold">Geofence Alert</p>
-                        <p className="text-sm">You appear to be outside the project site for '{activeProject?.name}'. Your timesheet may be flagged for review.</p>
-                    </div>
-                </div>
-            </div>
-        );
-    };
 
-    const GeofenceStatusIndicator: React.FC = () => {
-        if (!activeTimesheet || !activeProject?.geofenceRadius) {
-            return null;
-        }
-        const isInside = insideGeofenceIds.has(activeProject.id);
-        return (
-            <div className={`mt-2 text-xs flex items-center justify-center gap-1.5 ${isInside ? 'text-green-600' : 'text-yellow-600'}`}>
-                <div className={`w-2 h-2 rounded-full ${isInside ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-                {isInside ? 'Inside project geofence' : 'Outside project geofence'}
-            </div>
-        );
-    };
+    const isInsideActiveGeofence = useMemo(() => {
+        if (!activeProject) return false;
+        return insideGeofenceIds.has(activeProject.id);
+    }, [activeProject, insideGeofenceIds]);
 
     return (
         <div className="max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold text-slate-800 mb-6 text-center">Time Tracking</h2>
             
-            <GeofenceWarningBanner />
+            <GeofenceWarningBanner isVisible={isClockedInAndOutsideGeofence} projectName={activeProject?.name} />
 
             <Card className="mb-6 text-center">
                 <p className={`text-sm font-bold uppercase tracking-wider ${activeTimesheet ? 'text-green-600' : 'text-slate-500'}`}>
                     {activeTimesheet ? `Clocked In to ${activeProject?.name}` : 'Not Clocked In'}
                 </p>
                 <p className="text-6xl font-bold my-2 text-slate-800 tabular-nums">{shiftTimer}</p>
-                 <GeofenceStatusIndicator />
+                <GeofenceStatusIndicator isVisible={!!activeTimesheet && !!activeProject?.geofenceRadius} isInside={isInsideActiveGeofence} />
             </Card>
 
             {activeTimesheet ? (

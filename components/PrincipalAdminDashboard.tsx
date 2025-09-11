@@ -34,6 +34,58 @@ const SystemStatus: React.FC<{ service: string; isOk: boolean }> = ({ service, i
     </div>
 );
 
+const SendAnnouncement: React.FC<{
+    user: User;
+    addToast: (message: string, type: 'success' | 'error') => void;
+    onSent: () => void;
+}> = ({ user, addToast, onSent }) => {
+    const [title, setTitle] = useState('');
+    const [content, setContent] = useState('');
+    const [isSending, setIsSending] = useState(false);
+
+    const handleSend = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if(!title.trim() || !content.trim()) {
+            addToast('Title and content are required.', 'error');
+            return;
+        }
+        setIsSending(true);
+        try {
+            await api.sendAnnouncement({
+                senderId: user.id,
+                scope: 'platform',
+                title,
+                content
+            }, user.id);
+            addToast('Platform announcement sent!', 'success');
+            setTitle('');
+            setContent('');
+            onSent();
+        } catch (error) {
+            addToast('Failed to send announcement.', 'error');
+        } finally {
+            setIsSending(false);
+        }
+    }
+
+    return (
+        <Card className="mb-6">
+             <h4 className="text-lg font-semibold text-slate-800 mb-4">Send New Platform Announcement</h4>
+             <form onSubmit={handleSend} className="space-y-4">
+                 <div>
+                    <label htmlFor="ann-title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                    <input id="ann-title" value={title} onChange={e => setTitle(e.target.value)} className="w-full p-2 border rounded-md" required/>
+                </div>
+                 <div>
+                    <label htmlFor="ann-content" className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                    <textarea id="ann-content" value={content} onChange={e => setContent(e.target.value)} rows={4} className="w-full p-2 border rounded-md" required/>
+                </div>
+                <Button type="submit" isLoading={isSending}>Send to All Companies</Button>
+             </form>
+        </Card>
+    )
+ }
+
 type AdminTab = 'overview' | 'companies' | 'analytics' | 'settings' | 'status' | 'audit' | 'communications';
 
 export const PrincipalAdminDashboard: React.FC<PrincipalAdminDashboardProps> = ({ user, addToast }) => {
@@ -314,58 +366,10 @@ export const PrincipalAdminDashboard: React.FC<PrincipalAdminDashboardProps> = (
             </Card>
         )
      }
-
-     const SendAnnouncement: React.FC = () => {
-        const [title, setTitle] = useState('');
-        const [content, setContent] = useState('');
-        const [isSending, setIsSending] = useState(false);
-
-        const handleSend = async (e: React.FormEvent) => {
-            e.preventDefault();
-            if(!title.trim() || !content.trim()) {
-                addToast('Title and content are required.', 'error');
-                return;
-            }
-            setIsSending(true);
-            try {
-                await api.sendAnnouncement({
-                    senderId: user.id,
-                    scope: 'platform',
-                    title,
-                    content
-                }, user.id);
-                addToast('Platform announcement sent!', 'success');
-                setTitle('');
-                setContent('');
-                fetchData();
-            } catch (error) {
-                addToast('Failed to send announcement.', 'error');
-            } finally {
-                setIsSending(false);
-            }
-        }
-
-        return (
-            <Card className="mb-6">
-                 <h4 className="text-lg font-semibold text-slate-800 mb-4">Send New Platform Announcement</h4>
-                 <form onSubmit={handleSend} className="space-y-4">
-                     <div>
-                        <label htmlFor="ann-title" className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                        <input id="ann-title" value={title} onChange={e => setTitle(e.target.value)} className="w-full p-2 border rounded-md" required/>
-                    </div>
-                     <div>
-                        <label htmlFor="ann-content" className="block text-sm font-medium text-gray-700 mb-1">Content</label>
-                        <textarea id="ann-content" value={content} onChange={e => setContent(e.target.value)} rows={4} className="w-full p-2 border rounded-md" required/>
-                    </div>
-                    <Button type="submit" isLoading={isSending}>Send to All Companies</Button>
-                 </form>
-            </Card>
-        )
-     }
      
      const renderCommunications = () => (
         <div>
-            <SendAnnouncement />
+            <SendAnnouncement user={user} addToast={addToast} onSent={fetchData} />
             <Card>
                 <h3 className="text-xl font-semibold text-slate-800 mb-4">Sent Announcements</h3>
                 <div className="space-y-4">

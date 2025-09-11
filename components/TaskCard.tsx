@@ -11,9 +11,26 @@ interface TaskCardProps {
     user: User;
     addToast: (message: string, type: 'success' | 'error') => void;
     onReminderUpdate: () => void;
+    personnel: User[];
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, canManageTasks, user, addToast, onReminderUpdate }) => {
+const Avatar: React.FC<{ name: string; className?: string; title?: string }> = ({ name, className = '', title }) => {
+    const getInitials = (name: string) => {
+        const parts = name.split(' ');
+        if (parts.length > 1) {
+            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+    return (
+        <div title={title} className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
+            {getInitials(name)}
+        </div>
+    );
+};
+
+
+export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, canManageTasks, user, addToast, onReminderUpdate, personnel }) => {
     
     const isDone = todo.status === TodoStatus.DONE;
 
@@ -27,24 +44,24 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
         return dependency && dependency.status !== TodoStatus.DONE;
     }, [dependency, isDone]);
     
-    // Refactored to consolidate all state-based styling logic for better clarity and maintainability.
+    const assignee = useMemo(() => {
+        if (!todo.assigneeId || !personnel) return null;
+        return personnel.find(p => p.id === todo.assigneeId);
+    }, [todo.assigneeId, personnel]);
+    
     const statusClasses = useMemo(() => {
         if (isDone) {
-            // "Done" state takes precedence over all other visual states.
             return 'opacity-50 scale-95';
         }
         
         const classes = [];
         
-        // Blocked state is the most visually muted.
         if (isBlocked) {
             classes.push('opacity-60');
         } else if (todo.isOffline) {
-            // Offline state has a slight opacity reduction if not blocked.
             classes.push('opacity-75');
         }
         
-        // The offline border and padding are applied regardless of blocked status (unless done).
         if (todo.isOffline) {
             classes.push('border-l-4 border-sky-500 pl-3');
         }
@@ -88,9 +105,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
             draggable={canManageTasks && !isBlocked}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105' : ''}`}
+            className={`post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105' : ''} group relative`}
             title={cardTitle || undefined}
         >
+            {canManageTasks && !isDone && (
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onSelect(); }} 
+                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/10 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    title="Edit Task"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" />
+                    </svg>
+                </button>
+            )}
+
             <div className="flex justify-between items-start gap-2">
                 <div className={`flex-grow break-words flex items-center gap-2 ${isBlocked || isDone ? 'line-through' : ''} ${isDone ? 'text-slate-500' : 'text-slate-800'}`}>
                     {!isDone && todo.isOffline && (
@@ -103,7 +132,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
                     <p>{todo.text}</p>
                 </div>
                 
-                {/* Grouped status icons for a cleaner layout */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                     {isBlocked && (
                        <div title={`Blocked by: "${dependency?.text}"`}>
@@ -117,16 +145,24 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
             
             {!isDone && (
                  <div className="flex items-center justify-between text-xs text-gray-700 mt-3 font-sans">
-                     <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-3">
+                        <ReminderControl todo={todo} user={user} onReminderUpdate={onReminderUpdate} addToast={addToast} />
                         {todo.dueDate && (
-                            <div className={`font-semibold ${isOverdue ? 'text-red-700' : ''}`}>
-                                Due: {new Date(todo.dueDate).toLocaleDateString()}
+                            <div className={`font-semibold flex items-center gap-1.5 ${isOverdue ? 'text-red-700' : ''}`} title={isOverdue ? 'This task is overdue' : ''}>
+                                {isOverdue && (
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" />
+                                    </svg>
+                                )}
+                                <span>{new Date(todo.dueDate).toLocaleDateString()}</span>
                             </div>
                         )}
-                        <ReminderControl todo={todo} user={user} onReminderUpdate={onReminderUpdate} addToast={addToast} />
                      </div>
-                    <div className="font-semibold text-right">
-                        #{typeof todo.id === 'number' ? todo.id.toString().slice(-4) : '...'}
+                    <div className="flex items-center gap-2">
+                        {assignee && <Avatar name={assignee.name} className="w-6 h-6 text-xs" title={`Assigned to ${assignee.name}`} />}
+                        <div className="font-semibold text-right">
+                            #{typeof todo.id === 'number' ? todo.id.toString().slice(-4) : '...'}
+                        </div>
                     </div>
                 </div>
             )}

@@ -4,10 +4,12 @@ import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { DocumentStatusBadge } from './ui/StatusBadge';
 import { Button } from './ui/Button';
+import { queueAction } from '../hooks/useOfflineSync';
 
 interface DocumentsViewProps {
   user: User;
   addToast: (message: string, type: 'success' | 'error') => void;
+  isOnline: boolean;
 }
 
 const SortIcon: React.FC<{ sortKey: string; currentSort: { key: string; order: string; } }> = ({ sortKey, currentSort }) => {
@@ -22,7 +24,7 @@ const SortIcon: React.FC<{ sortKey: string; currentSort: { key: string; order: s
 
 type DocWithProgress = Doc & { uploadProgress?: number };
 
-export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) => {
+export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast, isOnline }) => {
     const [allDocuments, setAllDocuments] = useState<DocWithProgress[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [users, setUsers] = useState<User[]>([]);
@@ -101,7 +103,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
     
     useEffect(() => {
         fetchData();
-    }, []); // Run only on mount, fetchData will be called manually after uploads
+        
+        const handleDataChange = () => fetchData();
+        window.addEventListener('datachanged', handleDataChange);
+        return () => window.removeEventListener('datachanged', handleDataChange);
+    }, [fetchData]);
 
     const filteredAndSortedDocuments = useMemo(() => {
         const uploadingDocs = allDocuments.filter(d => d.status === DocumentStatus.UPLOADING);
@@ -153,7 +159,58 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
     const handleUpload = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedFile || !uploadProjectId || isUploading) return;
+        
+        if (!isOnline) {
+            // --- OFFLINE PATH ---
+            addToast(`You are offline. Upload for ${selectedFile.name} is queued.`, 'success');
+            
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const dataUrl = reader.result as string;
+                const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+                const base64 = dataUrl.split(',')[1];
+    
+                const docData = {
+                    name: selectedFile.name,
+                    projectId: parseInt(uploadProjectId),
+                    category: uploadCategory,
+                    creatorId: user.id,
+                };
+    
+                const fileData = { base64, mimeType };
+    
+                queueAction({
+                    type: 'UPLOAD_DOCUMENT',
+                    payload: { docData, fileData },
+                    projectId: parseInt(uploadProjectId)
+                });
+    
+                // Optimistic UI update
+                const optimisticDoc: DocWithProgress = {
+                    id: Date.now(), // Temp ID
+                    name: selectedFile.name,
+                    projectId: parseInt(uploadProjectId),
+                    category: uploadCategory,
+                    creatorId: user.id,
+                    status: DocumentStatus.UPLOADING,
+                    uploadedAt: new Date(),
+                    version: 1,
+                    url: '',
+                    isOffline: true,
+                    uploadProgress: 0,
+                };
+                setAllDocuments(prev => [optimisticDoc, ...prev]);
+    
+                // Reset form
+                setShowUploadForm(false);
+                setSelectedFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            };
+            reader.readAsDataURL(selectedFile);
+            return;
+        }
 
+        // --- ONLINE PATH ---
         setIsUploading(true);
         addToast(`Starting upload for ${selectedFile.name}...`, 'success');
 
@@ -192,13 +249,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
 
     const handleAcknowledge = async (docId: number) => {
         try {
-            await api.acknowledgeDocument(user.id, docId);
-            addToast('Document acknowledged successfully!', 'success');
-            // Refetch acks to update the UI instantly without a full data reload
-            const userAcks = await api.getDocumentAcksForUser(user.id);
-            setAcks(userAcks);
+            const ack = await api.acknowledgeDocument(user.id, docId);
+            setAcks(prev => [...prev, ack]);
+            addToast("Document acknowledged successfully!", "success");
         } catch (error) {
-            addToast('Failed to acknowledge document.', 'error');
+            addToast("Failed to acknowledge document.", "error");
         }
     };
     
@@ -244,8 +299,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                             <div>
                                 <label htmlFor="upload-category" className="block text-sm font-medium text-gray-700">Category</label>
                                 <select id="upload-category" value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value as DocumentCategory)} className="mt-1 block w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
-                                    {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
-                                    {Object.values(DocumentCategory).map(c => <option key={String(c)} value={c}>{c}</option>)}
+                                    {Object.values(DocumentCategory).map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
                             <div className="flex items-end">
@@ -280,16 +334,14 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                         <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                         <select id="category-filter" name="category" value={filters.category} onChange={handleFilterChange} className="w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
                             <option value="all">All Categories</option>
-                            {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
-                            {Object.values(DocumentCategory).map(c => <option key={String(c)} value={c}>{c}</option>)}
+                            {Object.values(DocumentCategory).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
                      <div className="flex-shrink-0">
                         <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                         <select id="status-filter" name="status" value={filters.status} onChange={handleFilterChange} className="w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
                             <option value="all">All Statuses</option>
-                            {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
-                            {Object.values(DocumentStatus).filter(s => s !== DocumentStatus.UPLOADING).map(s => <option key={String(s)} value={s}>{s}</option>)}
+                            {Object.values(DocumentStatus).filter(s => s !== DocumentStatus.UPLOADING).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
                     </div>
                 </div>
@@ -321,10 +373,18 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                                 const creator = users.find(u => u.id === doc.creatorId);
                                 const isAcknowledged = acks.some(ack => ack.documentId === doc.id);
                                 return (
-                                <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
+                                <tr key={doc.id} className={`hover:bg-slate-50 transition-colors ${doc.isOffline ? 'opacity-70' : ''}`}>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                                         <p>{doc.name} {doc.version > 1 && `(v${doc.version})`}</p>
-                                        {doc.uploadProgress !== undefined && doc.status === DocumentStatus.UPLOADING && (
+                                        {doc.isOffline && doc.status === DocumentStatus.UPLOADING && (
+                                            <div className="mt-2 text-xs text-sky-700 font-medium flex items-center gap-1.5">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                Queued for upload
+                                            </div>
+                                        )}
+                                        {doc.uploadProgress !== undefined && !doc.isOffline && doc.status === DocumentStatus.UPLOADING && (
                                             <div className="mt-2">
                                                 <div className="flex justify-between mb-1">
                                                     <span className="text-xs font-medium text-sky-700">Uploading...</span>
@@ -342,8 +402,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(doc.uploadedAt).toLocaleDateString()}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{creator?.name || 'Unknown'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        {doc.status === DocumentStatus.APPROVED && (
-                                            <div className="flex items-center justify-end space-x-2">
+                                        <div className="flex items-center justify-end space-x-2">
+                                            {doc.category === DocumentCategory.HS && doc.status === DocumentStatus.APPROVED && (
                                                 <Button
                                                     size="sm"
                                                     variant={isAcknowledged ? 'success' : 'secondary'}
@@ -362,11 +422,13 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                                                         'Acknowledge'
                                                     )}
                                                 </Button>
+                                            )}
+                                            {doc.status === DocumentStatus.APPROVED && (
                                                 <Button size="sm" variant="ghost" onClick={() => window.open(doc.url, '_blank')}>
                                                     Preview
                                                 </Button>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             )})}

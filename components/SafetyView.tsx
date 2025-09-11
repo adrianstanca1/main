@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, SafetyIncident, Project, IncidentSeverity, IncidentType, IncidentStatus, Permission, Role } from '../types';
 import { api } from '../services/mockApi';
@@ -71,7 +69,6 @@ const ReportIncidentModal: React.FC<{
                         <div>
                             <label className="block text-sm font-medium text-gray-700">Type</label>
                             <select value={type} onChange={e => setType(e.target.value as IncidentType)} className="mt-1 w-full p-2 border rounded-md bg-white">
-                                {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
                                 {Object.values(IncidentType).map(t => <option key={String(t)} value={t}>{t}</option>)}
                             </select>
                         </div>
@@ -79,7 +76,6 @@ const ReportIncidentModal: React.FC<{
                      <div>
                         <label className="block text-sm font-medium text-gray-700">Severity</label>
                         <select value={severity} onChange={e => setSeverity(e.target.value as IncidentSeverity)} className="mt-1 w-full p-2 border rounded-md bg-white">
-                             {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
                              {Object.values(IncidentSeverity).map(s => <option key={String(s)} value={s}>{s}</option>)}
                         </select>
                     </div>
@@ -104,8 +100,13 @@ const ReportIncidentModal: React.FC<{
 export const SafetyView: React.FC<SafetyViewProps> = ({ user, addToast }) => {
     const [incidents, setIncidents] = useState<SafetyIncident[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
+    const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    
+    // Filtering and Sorting
+    const [filters, setFilters] = useState({ projectId: 'all', status: 'all' });
+    const [sortKey, setSortKey] = useState<'timestamp' | 'severity'>('timestamp');
 
     const canReport = hasPermission(user, Permission.SUBMIT_SAFETY_REPORT);
     const canManage = hasPermission(user, Permission.MANAGE_SAFETY_REPORTS);
@@ -121,9 +122,14 @@ export const SafetyView: React.FC<SafetyViewProps> = ({ user, addToast }) => {
                 projectData = await api.getProjectsByUser(user.id);
             }
             setProjects(projectData);
-
-            const incidentData = await api.getSafetyIncidentsByCompany(user.companyId);
-            setIncidents(incidentData.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            
+            const [incidentData, usersData] = await Promise.all([
+                 api.getSafetyIncidentsByCompany(user.companyId),
+                 api.getUsersByCompany(user.companyId)
+            ]);
+            
+            setIncidents(incidentData);
+            setUsers(usersData);
         } catch (error) {
             addToast("Failed to load safety data.", "error");
         } finally {
@@ -135,7 +141,22 @@ export const SafetyView: React.FC<SafetyViewProps> = ({ user, addToast }) => {
         fetchData();
     }, [fetchData]);
     
+    const filteredAndSortedIncidents = useMemo(() => {
+        const severityOrder = { [IncidentSeverity.CRITICAL]: 1, [IncidentSeverity.HIGH]: 2, [IncidentSeverity.MEDIUM]: 3, [IncidentSeverity.LOW]: 4 };
+
+        return incidents
+            .filter(i => filters.projectId === 'all' || i.projectId === parseInt(filters.projectId))
+            .filter(i => filters.status === 'all' || i.status === filters.status)
+            .sort((a, b) => {
+                if (sortKey === 'severity') {
+                    return severityOrder[a.severity] - severityOrder[b.severity];
+                }
+                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(); // Default sort by date
+            });
+    }, [incidents, filters, sortKey]);
+
     const getProjectName = (projectId: number) => projects.find(p => p.id === projectId)?.name || 'Unknown Project';
+    const getUserName = (userId: number) => users.find(u => u.id === userId)?.name || 'Unknown User';
 
     if (loading) {
         return <Card><p>Loading safety data...</p></Card>;
@@ -155,40 +176,71 @@ export const SafetyView: React.FC<SafetyViewProps> = ({ user, addToast }) => {
                     </Button>
                 )}
             </div>
+
             <Card>
-                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
+                <div className="flex flex-wrap items-end gap-4 mb-4 pb-4 border-b">
+                     <div className="flex-shrink-0">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                        <select
+                            value={filters.projectId}
+                            onChange={e => setFilters(f => ({ ...f, projectId: e.target.value }))}
+                            className="w-full p-2 border bg-white rounded-md"
+                        >
+                            <option value="all">All Projects</option>
+                            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                     <div className="flex-shrink-0">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select
+                            value={filters.status}
+                            onChange={e => setFilters(f => ({ ...f, status: e.target.value }))}
+                            className="w-full p-2 border bg-white rounded-md"
+                        >
+                            <option value="all">All Statuses</option>
+                             {Object.values(IncidentStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-slate-50">
                             <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Project</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Type</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Severity</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
                                 {canManage && <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>}
                             </tr>
                         </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {incidents.map(incident => (
-                                <tr key={incident.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap">{new Date(incident.timestamp).toLocaleDateString()}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{getProjectName(incident.projectId)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{incident.type}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap"><IncidentSeverityBadge severity={incident.severity} /></td>
-                                    <td className="px-6 py-4 max-w-sm truncate" title={incident.description}>{incident.description}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap"><IncidentStatusBadge status={incident.status} /></td>
+                         <tbody className="bg-white divide-y divide-gray-200">
+                            {filteredAndSortedIncidents.map(incident => (
+                                <tr key={incident.id} className="hover:bg-slate-50">
+                                    <td className="px-6 py-4 max-w-sm">
+                                        <p className="font-medium text-slate-900 truncate" title={incident.description}>{incident.description}</p>
+                                        <p className="text-xs text-slate-500">Reported by {getUserName(incident.reporterId)}</p>
+                                    </td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">{getProjectName(incident.projectId)}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">{incident.type}</td>
+                                    <td className="px-6 py-4"><IncidentSeverityBadge severity={incident.severity} /></td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">{new Date(incident.timestamp).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4"><IncidentStatusBadge status={incident.status} /></td>
                                     {canManage && (
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                            <Button variant="ghost" size="sm">View Details</Button>
+                                         <td className="px-6 py-4 text-right">
+                                            {incident.status !== IncidentStatus.RESOLVED && <Button size="sm">Review</Button>}
                                         </td>
                                     )}
                                 </tr>
                             ))}
                         </tbody>
-                    </table>
-                     {incidents.length === 0 && <p className="text-center py-8 text-slate-500">No safety incidents reported.</p>}
-                 </div>
+                     </table>
+                </div>
+                 {filteredAndSortedIncidents.length === 0 && (
+                    <p className="text-center py-8 text-slate-500">No incidents match the current filters.</p>
+                 )}
             </Card>
         </div>
     );
