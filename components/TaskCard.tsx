@@ -1,31 +1,19 @@
 import React, { useMemo } from 'react';
 import { Todo, TodoStatus, TodoPriority, User } from '../types';
 import { PriorityDisplay } from './ui/PriorityDisplay';
+import { ReminderControl } from './ReminderControl';
 
 interface TaskCardProps {
     todo: Todo;
     allTodos: Todo[];
-    personnel: User[];
     onSelect: () => void;
     canManageTasks: boolean;
+    user: User;
+    addToast: (message: string, type: 'success' | 'error') => void;
+    onReminderUpdate: () => void;
 }
 
-const MiniAvatar: React.FC<{ name: string; title: string; className?: string }> = ({ name, title, className = '' }) => {
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div title={title} className={`rounded-full bg-slate-600 flex items-center justify-center text-white font-semibold flex-shrink-0 ring-2 ring-white ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
-
-export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, personnel, onSelect, canManageTasks }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, canManageTasks, user, addToast, onReminderUpdate }) => {
     
     const isDone = todo.status === TodoStatus.DONE;
 
@@ -39,8 +27,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, personnel, o
         return dependency && dependency.status !== TodoStatus.DONE;
     }, [dependency, isDone]);
     
-    const assignees = useMemo(() => personnel.filter(p => todo.assigneeIds?.includes(p.id)), [personnel, todo.assigneeIds]);
-
     // Refactored to consolidate all state-based styling logic for better clarity and maintainability.
     const statusClasses = useMemo(() => {
         if (isDone) {
@@ -109,7 +95,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, personnel, o
                 <div className={`flex-grow break-words flex items-center gap-2 ${isBlocked || isDone ? 'line-through' : ''} ${isDone ? 'text-slate-500' : 'text-slate-800'}`}>
                     {!isDone && todo.isOffline && (
                         <span title="This task is saved locally and will sync when online.">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-sky-500 flex-shrink-0" fill="none" viewBox="0 0 24" stroke="currentColor" strokeWidth={2}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-sky-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z" />
                             </svg>
                         </span>
@@ -131,34 +117,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, personnel, o
             
             {!isDone && (
                  <div className="flex items-center justify-between text-xs text-gray-700 mt-3 font-sans">
-                    <div className="flex items-center gap-2">
+                     <div className="flex items-center gap-2">
                         {todo.dueDate && (
                             <div className={`font-semibold ${isOverdue ? 'text-red-700' : ''}`}>
                                 Due: {new Date(todo.dueDate).toLocaleDateString()}
                             </div>
                         )}
-                        <div className="font-semibold text-right">
-                            #{typeof todo.id === 'number' ? todo.id.toString().slice(-4) : '...'}
-                        </div>
+                        <ReminderControl todo={todo} user={user} onReminderUpdate={onReminderUpdate} addToast={addToast} />
+                     </div>
+                    <div className="font-semibold text-right">
+                        #{typeof todo.id === 'number' ? todo.id.toString().slice(-4) : '...'}
                     </div>
-                    
-                    {assignees.length > 0 && (
-                        <div className="flex items-center">
-                            {assignees.slice(0, 3).map((assignee, index) => (
-                                <MiniAvatar
-                                    key={assignee.id}
-                                    name={assignee.name}
-                                    title={`Assigned to ${assignee.name}`}
-                                    className={`w-6 h-6 text-[10px] ${index > 0 ? '-ml-2' : ''}`}
-                                />
-                            ))}
-                            {assignees.length > 3 && (
-                                <div className="w-6 h-6 text-[10px] -ml-2 rounded-full bg-slate-300 flex items-center justify-center text-slate-700 font-semibold ring-2 ring-white">
-                                    +{assignees.length - 3}
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             )}
         </div>

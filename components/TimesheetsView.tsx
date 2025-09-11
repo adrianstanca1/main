@@ -43,8 +43,6 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
     const [rejectingTimesheetId, setRejectingTimesheetId] = useState<number | null>(null);
 
     const canManage = useMemo(() => hasPermission(user, Permission.MANAGE_TIMESHEETS), [user]);
-    const canReview = useMemo(() => hasPermission(user, Permission.REVIEW_TIMESHEETS), [user]);
-
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -54,7 +52,7 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
                 return;
             }
             let tsData: Timesheet[];
-            if (user.role === Role.ADMIN || user.role === Role.FOREMAN) { // Foreman can see all for approval
+            if (user.role === Role.ADMIN) {
                 tsData = await api.getTimesheetsByCompany(user.companyId, user.id);
             } else if (user.role === Role.PM) {
                 tsData = await api.getTimesheetsForManager(user.id);
@@ -81,17 +79,28 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
         fetchData();
     }, [fetchData]);
 
-    const handleUpdateStatus = async (id: number, status: TimesheetStatus, reason?: string) => {
+    const handleApprove = async (id: number) => {
         try {
-            await api.updateTimesheetStatus(id, status, reason, user.id);
-            addToast(`Timesheet ${status.toLowerCase()}.`, "success");
-            if (rejectingTimesheetId) setRejectingTimesheetId(null);
+            await api.updateTimesheetStatus(id, TimesheetStatus.APPROVED, undefined, user.id);
+            addToast("Timesheet approved!", "success");
             fetchData();
-        } catch(error) {
-            addToast(`Failed to update timesheet: ${error}`, "error");
+        } catch (error) {
+            addToast("Failed to approve timesheet.", "error");
         }
-    }
+    };
     
+    const handleReject = async (reason: string) => {
+        if (!rejectingTimesheetId) return;
+        try {
+            await api.updateTimesheetStatus(rejectingTimesheetId, TimesheetStatus.REJECTED, reason, user.id);
+            addToast("Timesheet rejected.", "success");
+            setRejectingTimesheetId(null);
+            fetchData();
+        } catch (error) {
+            addToast("Failed to reject timesheet.", "error");
+        }
+    };
+
     const formatHours = (clockIn: Date, clockOut: Date | null): string => {
         if (!clockOut) return 'Active';
         const diffMs = new Date(clockOut).getTime() - new Date(clockIn).getTime();
@@ -106,27 +115,27 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
 
     return (
         <div>
-            {rejectingTimesheetId && <RejectModal onClose={() => setRejectingTimesheetId(null)} onReject={(reason) => handleUpdateStatus(rejectingTimesheetId, TimesheetStatus.REJECTED, reason)} />}
+            {rejectingTimesheetId && <RejectModal onClose={() => setRejectingTimesheetId(null)} onReject={handleReject} />}
             <h2 className="text-3xl font-bold text-slate-800 mb-6">Timesheets</h2>
             <Card>
                  <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-slate-50">
                             <tr>
-                                {(canManage || canReview) && <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Employee</th>}
+                                {canManage && <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Employee</th>}
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Project</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Hours</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Location</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Comment/Reason</th>
-                                {(canManage || canReview) && <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>}
+                                {canManage && <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {timesheets.map(ts => (
                                 <tr key={ts.id} className="hover:bg-slate-50">
-                                    {(canManage || canReview) && <td className="px-6 py-4 font-medium">{getUserName(ts.userId)}</td>}
+                                    {canManage && <td className="px-6 py-4 font-medium">{getUserName(ts.userId)}</td>}
                                     <td className="px-6 py-4">{new Date(ts.clockIn).toLocaleDateString()}</td>
                                     <td className="px-6 py-4">{getProjectName(ts.projectId)}</td>
                                     <td className="px-6 py-4">{formatHours(ts.clockIn, ts.clockOut)}</td>
@@ -135,7 +144,7 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
                                             {ts.clockInLocation ? (
                                                 <div className="flex items-center gap-2">
                                                     <a href={`https://www.google.com/maps?q=${ts.clockInLocation.lat},${ts.clockInLocation.lng}`} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline flex items-center gap-1">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                                         Clock-in
                                                     </a>
                                                     {ts.trustScore && ts.trustScore < 0.8 && (
@@ -149,7 +158,7 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
                                             ) : null}
                                             {ts.clockOutLocation ? (
                                                 <a href={`https://www.google.com/maps?q=${ts.clockOutLocation.lat},${ts.clockOutLocation.lng}`} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:underline flex items-center gap-1">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                                     Clock-out
                                                 </a>
                                             ) : null}
@@ -158,22 +167,14 @@ export const TimesheetsView: React.FC<TimesheetsViewProps> = ({ user, addToast }
                                     </td>
                                     <td className="px-6 py-4"><TimesheetStatusBadge status={ts.status} /></td>
                                     <td className="px-6 py-4 text-sm text-slate-500 max-w-xs truncate" title={ts.comment}>{ts.comment || '—'}</td>
-                                    {(canManage || canReview) && (
+                                    {canManage && (
                                         <td className="px-6 py-4 text-right">
-                                             <div className="flex gap-2 justify-end">
-                                                {canManage && (ts.status === TimesheetStatus.PENDING || ts.status === TimesheetStatus.PENDING_PM_APPROVAL) && (
-                                                    <>
-                                                        <Button size="sm" variant="success" onClick={() => handleUpdateStatus(ts.id, TimesheetStatus.APPROVED)}>Approve</Button>
-                                                        <Button size="sm" variant="danger" onClick={() => setRejectingTimesheetId(ts.id)}>Reject</Button>
-                                                    </>
-                                                )}
-                                                {canReview && !canManage && ts.status === TimesheetStatus.PENDING && (
-                                                    <>
-                                                        <Button size="sm" variant="success" onClick={() => handleUpdateStatus(ts.id, TimesheetStatus.APPROVED)}>Forward for Approval</Button>
-                                                        <Button size="sm" variant="danger" onClick={() => setRejectingTimesheetId(ts.id)}>Reject</Button>
-                                                    </>
-                                                )}
-                                            </div>
+                                            {ts.status === TimesheetStatus.PENDING && (
+                                                <div className="flex gap-2 justify-end">
+                                                    <Button size="sm" variant="success" onClick={() => handleApprove(ts.id)}>Approve</Button>
+                                                    <Button size="sm" variant="danger" onClick={() => setRejectingTimesheetId(ts.id)}>Reject</Button>
+                                                </div>
+                                            )}
                                         </td>
                                     )}
                                 </tr>

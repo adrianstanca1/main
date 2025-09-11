@@ -1,5 +1,5 @@
 import React from 'react';
-import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus, UserStatus, TodoStatus } from '../../types';
+import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus, UserStatus } from '../../types';
 
 export const DocumentStatusBadge: React.FC<{ status: DocumentStatus }> = ({ status }) => {
     const statusMap = {
@@ -45,7 +45,6 @@ export const TimesheetStatusBadge: React.FC<{ status: TimesheetStatus }> = ({ st
     const statusMap = {
         [TimesheetStatus.APPROVED]: { text: 'Approved', color: 'bg-green-100 text-green-800' },
         [TimesheetStatus.PENDING]: { text: 'Pending', color: 'bg-sky-100 text-sky-800' },
-        [TimesheetStatus.PENDING_PM_APPROVAL]: { text: 'Pending PM Approval', color: 'bg-yellow-100 text-yellow-800' },
         [TimesheetStatus.REJECTED]: { text: 'Rejected', color: 'bg-red-100 text-red-800' },
         [TimesheetStatus.FLAGGED]: { text: 'Flagged', color: 'bg-yellow-100 text-yellow-800' },
     };
@@ -53,18 +52,6 @@ export const TimesheetStatusBadge: React.FC<{ status: TimesheetStatus }> = ({ st
 
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${color}`}>{text}</span>;
 }
-
-export const TodoStatusBadge: React.FC<{ status: TodoStatus }> = ({ status }) => {
-    const statusMap = {
-        [TodoStatus.TODO]: { text: 'To Do', color: 'bg-slate-100 text-slate-800' },
-        [TodoStatus.IN_PROGRESS]: { text: 'In Progress', color: 'bg-sky-100 text-sky-800' },
-        [TodoStatus.PENDING_APPROVAL]: { text: 'Pending Approval', color: 'bg-yellow-100 text-yellow-800' },
-        [TodoStatus.DONE]: { text: 'Done', color: 'bg-green-100 text-green-800' },
-    };
-    const { text, color } = statusMap[status] || { text: 'Unknown', color: 'bg-gray-100 text-gray-800' };
-    return <span className={`px-2 py-1 text-xs font-medium rounded-full ${color}`}>{text}</span>;
-};
-
 
 export const InvoiceStatusBadge: React.FC<{ status: InvoiceStatus }> = ({ status }) => {
     const statusMap = {

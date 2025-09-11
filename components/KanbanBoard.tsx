@@ -6,11 +6,13 @@ import { Button } from './ui/Button';
 interface KanbanBoardProps {
     todos: Todo[];
     allTodos: Todo[];
-    personnel: User[];
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
     onAddTask: (status: TodoStatus, text: string) => Promise<void>;
     canManageTasks: boolean;
+    user: User;
+    addToast: (message: string, type: 'success' | 'error') => void;
+    onReminderUpdate: () => void;
 }
 
 interface KanbanColumnProps {
@@ -18,14 +20,16 @@ interface KanbanColumnProps {
     status: TodoStatus;
     todos: Todo[];
     allTodos: Todo[]; // For context
-    personnel: User[];
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
     onAddTask: (status: TodoStatus, text: string) => Promise<void>;
     canManageTasks: boolean;
+    user: User;
+    addToast: (message: string, type: 'success' | 'error') => void;
+    onReminderUpdate: () => void;
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, personnel, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate }) => {
     const [isOver, setIsOver] = useState(false);
     
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -67,9 +71,11 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
                         key={todo.id} 
                         todo={todo}
                         allTodos={allTodos}
-                        personnel={personnel}
                         onSelect={() => onSelectTask(todo)}
                         canManageTasks={canManageTasks}
+                        user={user}
+                        addToast={addToast}
+                        onReminderUpdate={onReminderUpdate}
                     />
                 ))}
             </div>
@@ -77,17 +83,16 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
     );
 };
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, personnel, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate }) => {
     const todoTasks = todos.filter(t => t.status === TodoStatus.TODO);
     const inProgressTasks = todos.filter(t => t.status === TodoStatus.IN_PROGRESS);
-    const pendingApprovalTasks = todos.filter(t => t.status === TodoStatus.PENDING_APPROVAL);
     const doneTasks = todos
         .filter(t => t.status === TodoStatus.DONE)
         .sort((a, b) => {
             // Sort by completion date, with nulls (older tasks without the field) first.
             const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
             const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-            return dateB - dateA; // Show most recently completed first
+            return dateA - dateB;
         });
     
     return (
@@ -97,44 +102,39 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, perso
                 status={TodoStatus.TODO}
                 todos={todoTasks}
                 allTodos={allTodos}
-                personnel={personnel}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
                 canManageTasks={canManageTasks}
+                user={user}
+                addToast={addToast}
+                onReminderUpdate={onReminderUpdate}
             />
             <KanbanColumn 
                 title="In Progress"
                 status={TodoStatus.IN_PROGRESS}
                 todos={inProgressTasks}
                 allTodos={allTodos}
-                personnel={personnel}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
                 canManageTasks={canManageTasks}
-            />
-             <KanbanColumn 
-                title="Pending Approval"
-                status={TodoStatus.PENDING_APPROVAL}
-                todos={pendingApprovalTasks}
-                allTodos={allTodos}
-                personnel={personnel}
-                onUpdateTaskStatus={onUpdateTaskStatus}
-                onSelectTask={onSelectTask}
-                onAddTask={onAddTask}
-                canManageTasks={canManageTasks}
+                user={user}
+                addToast={addToast}
+                onReminderUpdate={onReminderUpdate}
             />
             <KanbanColumn 
                 title="Done"
                 status={TodoStatus.DONE}
                 todos={doneTasks}
                 allTodos={allTodos}
-                personnel={personnel}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
                 canManageTasks={canManageTasks}
+                user={user}
+                addToast={addToast}
+                onReminderUpdate={onReminderUpdate}
             />
         </div>
     );

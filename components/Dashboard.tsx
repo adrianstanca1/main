@@ -8,8 +8,6 @@ import { hasPermission } from '../services/auth';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { PriorityDisplay } from './ui/PriorityDisplay';
 import { TimesheetStatusBadge } from './ui/StatusBadge';
-import { CreateProjectModal } from './CreateProjectModal';
-import { ReportIncidentModal } from './ReportIncidentModal';
 
 // --- TASK DETAIL MODAL ---
 const TaskDetailModal: React.FC<{
@@ -282,30 +280,36 @@ const AuditLogIcon: React.FC<{ action: AuditLogAction }> = ({ action }) => {
     return iconMap[key];
 };
 
-const TenantDashboard: React.FC<DashboardProps & {
-    onOpenReportModal: () => void;
-    onOpenCreateProjectModal: () => void;
-    projects: Project[];
-}> = ({ user, addToast, onSelectProject, setActiveView, onOpenReportModal, onOpenCreateProjectModal, projects }) => {
+const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectProject, setActiveView }) => {
+    const [projects, setProjects] = useState<Project[]>([]);
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [companyUsers, setCompanyUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
-    const [isFabOpen, setIsFabOpen] = useState(false);
-
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
             if (!user.companyId) return;
             
-            const [usersData, logsData, announcementData] = await Promise.all([
+            let projectsPromise: Promise<Project[]>;
+            if (hasPermission(user, Permission.VIEW_ALL_PROJECTS)) {
+                projectsPromise = api.getProjectsByCompany(user.companyId);
+            } else if (user.role === Role.PM) {
+                projectsPromise = api.getProjectsByManager(user.id);
+            } else {
+                projectsPromise = api.getProjectsByUser(user.id);
+            }
+
+            const [fetchedProjects, usersData, logsData, announcementData] = await Promise.all([
+                projectsPromise,
                 api.getUsersByCompany(user.companyId),
                 api.getAuditLogsForUserProjects(user.id),
                 api.getAnnouncementsForCompany(user.companyId)
             ]);
 
+            setProjects(fetchedProjects);
             setCompanyUsers(usersData);
             setAuditLogs(logsData);
             setAnnouncements(announcementData.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
@@ -323,33 +327,12 @@ const TenantDashboard: React.FC<DashboardProps & {
     
     const userMap = useMemo(() => new Map(companyUsers.map(u => [u.id, u])), [companyUsers]);
 
-    const userActions = useMemo(() => {
-        const actions: Record<Role, { label: string; icon: JSX.Element; onClick: () => void; disabled?: boolean }[]> = {
-            [Role.ADMIN]: [
-                { label: 'Create Project', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>, onClick: onOpenCreateProjectModal },
-                { label: 'Manage Team', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>, onClick: () => setActiveView('users') },
-            ],
-            [Role.PM]: [
-                { label: 'Review Timesheets', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>, onClick: () => setActiveView('timesheets') },
-                { label: 'View Projects', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>, onClick: () => setActiveView('projects') },
-            ],
-            [Role.FOREMAN]: [
-                { label: 'Report Incident', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>, onClick: onOpenReportModal },
-                { label: 'Review Timesheets', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>, onClick: () => setActiveView('timesheets') },
-            ],
-            // Other roles can be added here
-            [Role.PRINCIPAL_ADMIN]: [], [Role.SAFETY_OFFICER]: [], [Role.OPERATIVE]: []
-        };
-        return actions[user.role] || [];
-    }, [user.role, setActiveView, onOpenReportModal, onOpenCreateProjectModal]);
-
-
     if (loading) {
         return <Card><p>Loading dashboard...</p></Card>;
     }
 
     return (
-        <div className="space-y-6 relative pb-24">
+        <div className="space-y-6">
             {isAnnouncementModalOpen && <SendAnnouncementModal user={user} onClose={() => setIsAnnouncementModalOpen(false)} onSent={fetchData} addToast={addToast} />}
             <h2 className="text-3xl font-bold text-slate-800">Welcome back, {user.name.split(' ')[0]}!</h2>
             
@@ -389,7 +372,7 @@ const TenantDashboard: React.FC<DashboardProps & {
                     <Card>
                         <h3 className="font-semibold text-lg mb-4">Quick Actions</h3>
                         <div className="space-y-2">
-                           {hasPermission(user, Permission.MANAGE_PROJECTS) && user.role !== Role.PM && <Button className="w-full" variant="secondary" onClick={() => setActiveView('projects')}>Add New Project</Button>}
+                           {hasPermission(user, Permission.MANAGE_PROJECTS) && <Button className="w-full" variant="secondary" onClick={() => setActiveView('projects')}>Add New Project</Button>}
                            {hasPermission(user, Permission.MANAGE_TEAM) && <Button className="w-full" variant="secondary" onClick={() => setActiveView('users')}>Manage Team</Button>}
                            {hasPermission(user, Permission.SEND_ANNOUNCEMENT) && <Button className="w-full" variant="secondary" onClick={() => setIsAnnouncementModalOpen(true)}>Send Announcement</Button>}
                         </div>
@@ -412,36 +395,11 @@ const TenantDashboard: React.FC<DashboardProps & {
                     </Card>
                 </div>
             </div>
-             <div className="fixed bottom-8 right-8 z-40">
-                {isFabOpen && (
-                    <div className="flex flex-col items-end gap-3 mb-3">
-                        {userActions.map(action => (
-                            <div key={action.label} className="flex items-center gap-2">
-                                <span className="bg-white/90 backdrop-blur-sm text-slate-700 text-sm px-3 py-1.5 rounded-md shadow-sm">{action.label}</span>
-                                <Button size="md" onClick={() => { action.onClick(); setIsFabOpen(false); }} className="rounded-full h-14 w-14 shadow-lg" disabled={action.disabled}>
-                                    {action.icon}
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-                <Button size="lg" onClick={() => setIsFabOpen(p => !p)} className="rounded-full h-16 w-16 shadow-lg transition-transform duration-200 hover:scale-110">
-                    {isFabOpen ? (
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    )}
-                </Button>
-            </div>
         </div>
     );
 };
 
-const OperativeDashboard: React.FC<DashboardProps & { onOpenSubmitReportModal: () => void, activeProject: Project | null }> = ({ user, addToast, setActiveView, onOpenSubmitReportModal, activeProject }) => {
+const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiveView }) => {
     const [loading, setLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
     const [tasks, setTasks] = useState<Todo[]>([]);
@@ -451,7 +409,12 @@ const OperativeDashboard: React.FC<DashboardProps & { onOpenSubmitReportModal: (
     const [weather, setWeather] = useState<WeatherForecast | null>(null);
     const [shiftTimer, setShiftTimer] = useState<string>('00:00:00');
     const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
-    const [isFabOpen, setIsFabOpen] = useState(false);
+    const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+    
+    const activeProject = useMemo(() => {
+        if (!activeTimesheet) return null;
+        return projects.find(p => p.id === activeTimesheet.projectId);
+    }, [activeTimesheet, projects]);
 
     const fetchData = useCallback(async () => {
         if (!user.companyId) return;
@@ -561,17 +524,13 @@ const OperativeDashboard: React.FC<DashboardProps & { onOpenSubmitReportModal: (
         setSelectedTask(updatedTask);
         setTasks(tasks.map(t => t.id === selectedTask.id ? updatedTask : t));
     };
-    
-    const userActions = [
-        { label: 'Submit Site Report', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>, onClick: onOpenSubmitReportModal, disabled: !activeProject },
-        { label: 'Time Clock', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>, onClick: () => setActiveView('time') }
-    ];
 
     if (loading) return <Card><p>Loading your dashboard...</p></Card>;
 
     return (
-        <div className="space-y-6 relative pb-24">
+        <div className="space-y-6">
             {selectedTask && <TaskDetailModal task={selectedTask} user={user} projectName={projects.find(p => p.id === selectedTask.projectId)?.name || ''} onClose={() => setSelectedTask(null)} onUpdateSubtask={handleUpdateSubtask} onAddComment={handleAddComment} />}
+            {isReportModalOpen && activeProject && <SubmitReportModal user={user} projectId={activeProject.id} onClose={() => setIsReportModalOpen(false)} onSubmit={fetchData} addToast={addToast} />}
             
             <h2 className="text-3xl font-bold text-slate-800">Operative Dashboard</h2>
 
@@ -593,7 +552,7 @@ const OperativeDashboard: React.FC<DashboardProps & { onOpenSubmitReportModal: (
                         {activeTimesheet ? (
                              <div className="space-y-4">
                                 <p className="text-sm text-slate-500">
-                                    Clocked into: <span className="font-medium text-slate-800">{projects.find(p => p.id === activeTimesheet.projectId)?.name}</span>
+                                    Clocked into: <span className="font-medium text-slate-800">{activeProject?.name}</span>
                                 </p>
                                 <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-6">
                                     <p className="text-sm text-slate-500 uppercase tracking-wider">Current Shift Duration</p>
@@ -609,6 +568,17 @@ const OperativeDashboard: React.FC<DashboardProps & { onOpenSubmitReportModal: (
                         <Button className="w-full mt-4" onClick={() => setActiveView('time')}>
                             Go to Time Clock
                         </Button>
+                    </Card>
+                    <Card>
+                        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+                        <div className="space-y-3">
+                            <Button className="w-full" variant="secondary" onClick={() => setIsReportModalOpen(true)} disabled={!activeProject}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Submit Site Report
+                            </Button>
+                        </div>
                     </Card>
                 </div>
                  {/* Column 2: Tasks */}
@@ -644,102 +614,16 @@ const OperativeDashboard: React.FC<DashboardProps & { onOpenSubmitReportModal: (
                     </Card>
                 </div>
             </div>
-            <div className="fixed bottom-8 right-8 z-40">
-                {isFabOpen && (
-                    <div className="flex flex-col items-end gap-3 mb-3">
-                        {userActions.map(action => (
-                           <div key={action.label} className="flex items-center gap-2">
-                               <span className="bg-white/90 backdrop-blur-sm text-slate-700 text-sm px-3 py-1.5 rounded-md shadow-sm">{action.label}</span>
-                               <Button size="md" onClick={() => { action.onClick(); setIsFabOpen(false); }} className="rounded-full h-14 w-14 shadow-lg" disabled={action.disabled}>
-                                   {action.icon}
-                               </Button>
-                           </div>
-                        ))}
-                    </div>
-                )}
-                <Button size="lg" onClick={() => setIsFabOpen(p => !p)} className="rounded-full h-16 w-16 shadow-lg transition-transform duration-200 hover:scale-110">
-                    {isFabOpen ? (
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                    )}
-                </Button>
-            </div>
         </div>
     );
 };
 
 export const Dashboard: React.FC<DashboardProps> = (props) => {
-    const { user, addToast, onSelectProject } = props;
-    const [isSubmitReportModalOpen, setIsSubmitReportModalOpen] = useState(false);
-    const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
-    const [isReportIncidentModalOpen, setIsReportIncidentModalOpen] = useState(false);
-    
-    // Data needed for modals, fetched here to be available for all dashboard types.
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [activeTimesheet, setActiveTimesheet] = useState<Timesheet | null>(null);
-
-    const activeProject = useMemo(() => {
-        if (!activeTimesheet) return null;
-        return projects.find(p => p.id === activeTimesheet.projectId);
-    }, [activeTimesheet, projects]);
-    
-    const projectFetch = useCallback(async () => {
-        if (!user.companyId) return;
-        try {
-            let projectsPromise: Promise<Project[]>;
-            if (hasPermission(user, Permission.VIEW_ALL_PROJECTS)) {
-                projectsPromise = api.getProjectsByCompany(user.companyId);
-            } else if (user.role === Role.PM) {
-                projectsPromise = api.getProjectsByManager(user.id);
-            } else {
-                projectsPromise = api.getProjectsByUser(user.id);
-            }
-            const [fetchedProjects, timesheetsData] = await Promise.all([
-                projectsPromise,
-                api.getTimesheetsByUser(user.id)
-            ]);
-            setProjects(fetchedProjects);
-            setActiveTimesheet(timesheetsData.find(t => t.clockOut === null) || null);
-        } catch (e) {
-            addToast("Failed to load project data for dashboard.", "error");
-        }
-    }, [user, addToast]);
-    
-    useEffect(() => {
-        projectFetch();
-    }, [projectFetch]);
-    
-    const handleProjectCreated = (newProject: Project) => {
-        projectFetch(); // Refetch all data
-        onSelectProject(newProject);
-    };
-
     if (props.user.role === Role.PRINCIPAL_ADMIN) {
         return <PrincipalAdminDashboard user={props.user} addToast={props.addToast} />;
     }
-    
-    return (
-        <div>
-            {isSubmitReportModalOpen && activeProject && (
-                <SubmitReportModal user={user} projectId={activeProject.id} onClose={() => setIsSubmitReportModalOpen(false)} onSubmit={projectFetch} addToast={addToast} />
-            )}
-            {isCreateProjectModalOpen && (
-                <CreateProjectModal user={user} onClose={() => setIsCreateProjectModalOpen(false)} onProjectCreated={handleProjectCreated} addToast={addToast} />
-            )}
-            {isReportIncidentModalOpen && (
-                <ReportIncidentModal user={user} projects={projects} onClose={() => setIsReportIncidentModalOpen(false)} onReport={projectFetch} addToast={addToast} />
-            )}
-
-            {props.user.role === Role.OPERATIVE ? (
-                 <OperativeDashboard {...props} onOpenSubmitReportModal={() => setIsSubmitReportModalOpen(true)} activeProject={activeProject} />
-            ) : (
-                <TenantDashboard {...props} onOpenReportModal={() => setIsReportIncidentModalOpen(true)} onOpenCreateProjectModal={() => setIsCreateProjectModalOpen(true)} projects={projects} />
-            )}
-       </div>
-    );
+    if (props.user.role === Role.OPERATIVE) {
+        return <OperativeDashboard {...props} />;
+    }
+    return <TenantDashboard {...props} />;
 };

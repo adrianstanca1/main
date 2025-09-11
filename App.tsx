@@ -24,6 +24,7 @@ import { useOfflineSync } from './hooks/useOfflineSync';
 import { useReminderService } from './hooks/useReminderService';
 import { api } from './services/mockApi';
 import { hasPermission } from './services/auth';
+import { ProjectsMapView } from './components/ProjectsMapView';
 
 interface Toast {
     id: number;
@@ -187,6 +188,8 @@ const App: React.FC = () => {
                 return <EquipmentView user={user!} addToast={addToast} />;
             case 'templates':
                 return <TemplatesView user={user!} addToast={addToast} />;
+            case 'map':
+                return <ProjectsMapView user={user!} addToast={addToast} />;
             default:
                 return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
         }

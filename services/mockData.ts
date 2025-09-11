@@ -1,3 +1,5 @@
+
+
 import {
   User, Company, Project, Todo, Timesheet, SafetyIncident, Document,
   Role, Permission, View, TimesheetStatus, TodoStatus, TodoPriority,
@@ -41,10 +43,10 @@ const users: User[] = [
 ];
 
 const projects: Project[] = [
-  { id: 1, name: 'Downtown Office Complex', companyId: 1, location: { lat: 51.5074, lng: -0.1278, address: '123 Business District, London' }, startDate: new Date('2025-01-15'), budget: 5000000, actualCost: 2300000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/3861458/pexels-photo-3861458.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Commercial Construction', workClassification: 'Contracting' },
-  { id: 2, name: 'Suburban Housing Development', companyId: 1, location: { lat: 51.5560, lng: -0.2796, address: '456 Oak Lane, Wembley' }, startDate: new Date('2024-09-01'), budget: 8000000, actualCost: 750000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/1115804/pexels-photo-1115804.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Residential Construction', workClassification: 'Development' },
+  { id: 1, name: 'Downtown Office Complex', companyId: 1, location: { lat: 51.5074, lng: -0.1278, address: '123 Business District, London' }, startDate: new Date('2025-01-15'), budget: 5000000, actualCost: 2300000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/3861458/pexels-photo-3861458.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Commercial Construction', workClassification: 'Contracting', geofenceRadius: 200 },
+  { id: 2, name: 'Suburban Housing Development', companyId: 1, location: { lat: 51.5560, lng: -0.2796, address: '456 Oak Lane, Wembley' }, startDate: new Date('2024-09-01'), budget: 8000000, actualCost: 750000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/1115804/pexels-photo-1115804.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Residential Construction', workClassification: 'Development', geofenceRadius: 500 },
   { id: 3, name: 'City Bridge Refurbishment', companyId: 1, location: { lat: 51.509865, lng: -0.118092, address: 'River Thames Crossing, London' }, startDate: new Date('2024-05-10'), budget: 2500000, actualCost: 2650000, status: 'Completed', imageUrl: 'https://images.pexels.com/photos/1586795/pexels-photo-1586795.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Infrastructure', workClassification: 'Maintenance' },
-  { id: 10, name: 'Mall Expansion', companyId: 2, location: { lat: 53.4808, lng: -2.2426, address: '789 High Street, Manchester' }, startDate: new Date('2025-03-01'), budget: 12000000, actualCost: 450000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/21067/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Commercial Construction', workClassification: 'Contracting' },
+  { id: 10, name: 'Mall Expansion', companyId: 2, location: { lat: 53.4808, lng: -2.2426, address: '789 High Street, Manchester' }, startDate: new Date('2025-03-01'), budget: 12000000, actualCost: 450000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/21067/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Commercial Construction', workClassification: 'Contracting', geofenceRadius: 300 },
 ];
 
 const subtasks1: SubTask[] = [{id: 1, text: 'Pour foundation', completed: true}, {id: 2, text: 'Erect steel frame', completed: false}];
@@ -128,7 +130,35 @@ const clients: Client[] = [{ id: 1, companyId: 1, name: 'Innovate Corp', contact
 const invoices: Invoice[] = [{ id: 1, companyId: 1, clientId: 1, projectId: 3, status: InvoiceStatus.PAID, total: 150000, amountDue: 0, issuedAt: new Date('2024-08-20'), dueAt: new Date('2024-09-20'), items: [] }];
 const quotes: Quote[] = [{ id: 1, companyId: 1, clientId: 1, projectId: 1, status: QuoteStatus.ACCEPTED, total: 4800000, validUntil: new Date('2024-12-31') }];
 const equipment: Equipment[] = [{ id: 1, name: 'Excavator EX-200', type: 'Heavy Machinery', status: EquipmentStatus.AVAILABLE, companyId: 1 }, { id: 2, name: 'Crane C-150', type: 'Heavy Machinery', status: EquipmentStatus.IN_USE, companyId: 1, projectId: 1 }];
-const resourceAssignments: ResourceAssignment[] = [];
+const resourceAssignments: ResourceAssignment[] = [
+    {
+        id: 1,
+        companyId: 1,
+        projectId: 1,
+        resourceId: 3, // David Chen
+        resourceType: 'user',
+        startDate: new Date(new Date().setDate(new Date().getDate() - 2)),
+        endDate: new Date(new Date().setDate(new Date().getDate() + 3)),
+    },
+    {
+        id: 2,
+        companyId: 1,
+        projectId: 1,
+        resourceId: 4, // James Wilson
+        resourceType: 'user',
+        startDate: new Date(new Date().setDate(new Date().getDate())),
+        endDate: new Date(new Date().setDate(new Date().getDate() + 6)),
+    },
+    {
+        id: 3,
+        companyId: 1,
+        projectId: 2,
+        resourceId: 5, // Maria Garcia
+        resourceType: 'user',
+        startDate: new Date(new Date().setDate(new Date().getDate() - 5)),
+        endDate: new Date(new Date().setDate(new Date().getDate() - 1)),
+    }
+];
 const operativeReports: OperativeReport[] = [{id: 1, projectId: 1, userId: 3, notes: 'Framing on floor 2 complete.', timestamp: new Date('2025-01-22T16:00:00Z'), photoUrl: 'https://images.pexels.com/photos/1216589/pexels-photo-1216589.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'}];
 const weatherForecasts: WeatherForecast[] = [];
 const projectPhotos: ProjectPhoto[] = [{id: 1, projectId: 1, uploaderId: 2, url: 'https://images.pexels.com/photos/585419/pexels-photo-585419.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'Site progress as of Jan 22.', timestamp: new Date('2025-01-22T12:00:00Z')}];
@@ -175,6 +205,7 @@ const tools: Tool[] = [
   // Project Management
   { id: 'schedule-optimizer', name: 'Schedule Optimizer', description: 'AI-powered resource and task scheduling for maximum efficiency.', status: ToolStatus.COMING_SOON, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', tags: ['AI', 'Project'] },
   { id: 'safety-analysis', name: 'Safety Analysis', description: 'Analyze incident reports to identify trends and recommend actions.', status: ToolStatus.ACTIVE, icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', tags: ['AI', 'Safety', 'Project'] },
+  { id: 'workforce-planner', name: 'Workforce Planner', description: 'Visually assign operatives to projects and manage team availability.', status: ToolStatus.NEW, icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z', tags: ['Project', 'Strategy'] },
 ];
 
 const projectTemplates: ProjectTemplate[] = [

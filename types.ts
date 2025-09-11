@@ -25,7 +25,8 @@ export type View =
   | 'tools'
   | 'financials'
   | 'equipment'
-  | 'templates';
+  | 'templates'
+  | 'map';
 
 // --- Permissions ---
 
@@ -38,20 +39,16 @@ export enum Permission {
   
   // Tasks
   MANAGE_TASKS = 'MANAGE_TASKS', // Create, edit, assign, delete
-  APPROVE_TASKS = 'APPROVE_TASKS',
   VIEW_ALL_TASKS = 'VIEW_ALL_TASKS',
   VIEW_ASSIGNED_TASKS = 'VIEW_ASSIGNED_TASKS',
 
   // Team Management
   VIEW_TEAM = 'VIEW_TEAM',
-  MANAGE_TEAM = 'MANAGE_TEAM', // Invite, edit roles, remove (Company-wide)
-  INVITE_PROJECT_MEMBERS = 'INVITE_PROJECT_MEMBERS', // (Project-specific)
-
+  MANAGE_TEAM = 'MANAGE_TEAM', // Invite, edit roles, remove
 
   // Timesheets
   SUBMIT_TIMESHEET = 'SUBMIT_TIMESHEET',
-  REVIEW_TIMESHEETS = 'REVIEW_TIMESHEETS', // Foreman review
-  MANAGE_TIMESHEETS = 'MANAGE_TIMESHEETS', // Approve, reject (Final)
+  MANAGE_TIMESHEETS = 'MANAGE_TIMESHEETS', // Approve, reject
   VIEW_ALL_TIMESHEETS = 'VIEW_ALL_TIMESHEETS',
   VIEW_OWN_TIMESHEETS = 'VIEW_OWN_TIMESHEETS',
 
@@ -87,7 +84,6 @@ export const RolePermissions: Record<Role, Set<Permission>> = {
     Permission.MANAGE_PROJECTS,
     Permission.MANAGE_PROJECT_TEMPLATES,
     Permission.MANAGE_TASKS,
-    Permission.APPROVE_TASKS,
     Permission.VIEW_ALL_TASKS,
     Permission.VIEW_TEAM,
     Permission.MANAGE_TEAM,
@@ -109,14 +105,12 @@ export const RolePermissions: Record<Role, Set<Permission>> = {
   ]),
   [Role.PM]: new Set([
     Permission.VIEW_ASSIGNED_PROJECTS,
-    Permission.VIEW_ALL_PROJECTS,
-    Permission.MANAGE_PROJECTS, // Cannot create new projects (UI/API check)
-    Permission.INVITE_PROJECT_MEMBERS,
+    Permission.VIEW_ALL_PROJECTS, // Often PMs can see all projects
+    Permission.MANAGE_PROJECTS,
     Permission.MANAGE_TASKS,
-    Permission.APPROVE_TASKS,
     Permission.VIEW_ALL_TASKS,
     Permission.VIEW_TEAM,
-    Permission.MANAGE_TIMESHEETS, // Final approval
+    Permission.MANAGE_TIMESHEETS,
     Permission.VIEW_ALL_TIMESHEETS,
     Permission.MANAGE_SAFETY_REPORTS,
     Permission.VIEW_SAFETY_REPORTS,
@@ -130,17 +124,12 @@ export const RolePermissions: Record<Role, Set<Permission>> = {
   ]),
   [Role.FOREMAN]: new Set([
     Permission.VIEW_ASSIGNED_PROJECTS,
-    Permission.MANAGE_TASKS, // Limited task management
-    Permission.APPROVE_TASKS,
     Permission.VIEW_ASSIGNED_TASKS,
     Permission.VIEW_TEAM,
     Permission.SUBMIT_TIMESHEET,
-    Permission.REVIEW_TIMESHEETS,
     Permission.VIEW_OWN_TIMESHEETS,
-    Permission.VIEW_ALL_TIMESHEETS, // Can see their team's timesheets
     Permission.SUBMIT_SAFETY_REPORT,
     Permission.VIEW_SAFETY_REPORTS,
-    Permission.UPLOAD_DOCUMENTS,
     Permission.VIEW_DOCUMENTS,
     Permission.SEND_DIRECT_MESSAGE,
   ]),
@@ -160,7 +149,6 @@ export const RolePermissions: Record<Role, Set<Permission>> = {
     Permission.SUBMIT_TIMESHEET,
     Permission.VIEW_OWN_TIMESHEETS,
     Permission.SUBMIT_SAFETY_REPORT,
-    Permission.UPLOAD_DOCUMENTS,
     Permission.VIEW_DOCUMENTS,
     Permission.SEND_DIRECT_MESSAGE,
   ]),
@@ -204,12 +192,12 @@ export interface Project {
   projectType: string;
   workClassification: string;
   companyId: number;
+  geofenceRadius?: number;
 }
 
 export enum TodoStatus {
     TODO = 'To Do',
     IN_PROGRESS = 'In Progress',
-    PENDING_APPROVAL = 'Pending Approval',
     DONE = 'Done',
 }
 
@@ -236,7 +224,6 @@ export interface Todo {
     id: number | string; // string for optimistic offline tasks
     projectId: number;
     creatorId: number;
-    assigneeIds?: number[];
     text: string;
     status: TodoStatus;
     priority: TodoPriority;
@@ -257,7 +244,6 @@ export enum WorkType {
 
 export enum TimesheetStatus {
     PENDING = 'Pending',
-    PENDING_PM_APPROVAL = 'Pending PM Approval',
     APPROVED = 'Approved',
     REJECTED = 'Rejected',
     FLAGGED = 'Flagged'
@@ -375,7 +361,6 @@ export type AuditLogAction =
   | 'PROJECT_UPDATED'
   | 'TASK_CREATED'
   | 'TASK_UPDATED'
-  | 'TASK_ASSIGNED'
   | 'TASK_COMPLETED'
   | 'DOCUMENT_UPLOADED'
   | 'DOCUMENT_DELETED'

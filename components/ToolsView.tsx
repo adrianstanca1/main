@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // FIX: Import Tool and ToolStatus types.
 import { User, View, Tool, ToolStatus } from '../types';
@@ -14,6 +15,7 @@ import { BidPackageGenerator } from './BidPackageGenerator';
 import { DailySummaryGenerator } from './DailySummaryGenerator';
 import { Tag } from './ui/Tag';
 import { AISiteInspector } from './AISiteInspector';
+import { WorkforcePlanner } from './WorkforcePlanner';
 
 
 interface ToolsViewProps {
@@ -100,6 +102,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ user, addToast }) => {
             case 'bid-generator': return <BidPackageGenerator user={user} addToast={addToast} onBack={handleBack} />;
             case 'daily-summary': return <DailySummaryGenerator user={user} addToast={addToast} onBack={handleBack} />;
             case 'site-inspector': return <AISiteInspector user={user} addToast={addToast} onBack={handleBack} />;
+            case 'workforce-planner': return <WorkforcePlanner user={user} addToast={addToast} onBack={handleBack} />;
             default:
                 return (
                     <Card>

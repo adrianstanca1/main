@@ -1,3 +1,4 @@
+
 // This file mocks a backend API for the application.
 // In a real-world scenario, this would be replaced with actual HTTP requests to a server.
 
@@ -15,7 +16,6 @@ import {
 } from '../types';
 import { MOCK_DATA, simulateDelay } from './mockData';
 import { GoogleGenAI, GenerateContentResponse, Part, Modality } from "@google/genai";
-import { hasPermission } from './auth';
 
 // A simple in-memory representation of the database.
 let DB = MOCK_DATA;
@@ -80,10 +80,6 @@ export const api = {
     const actor = DB.users.find(u => u.id === actorId);
     if (!actor) throw new Error("Actor not found");
 
-    if (actor.role === Role.PM) {
-        throw new Error("Project Managers cannot create new projects.");
-    }
-
     const newProject: Project = {
         ...projectData,
         id: DB.projects.length + 100,
@@ -143,16 +139,7 @@ export const api = {
     const index = DB.todos.findIndex(t => t.id === todoId);
     if (index === -1) throw new Error("Todo not found");
     
-    const actor = DB.users.find(u => u.id === actorId);
-    if (!actor) throw new Error("Actor not found");
-
     const originalTodo = { ...DB.todos[index] };
-
-    // Workflow: Operative marking task as "Done" sends it for approval.
-    if (updates.status === TodoStatus.DONE && actor.role === Role.OPERATIVE) {
-        updates.status = TodoStatus.PENDING_APPROVAL;
-    }
-
     const updatedTodo = { ...originalTodo, ...updates };
     DB.todos[index] = updatedTodo;
 
@@ -164,27 +151,6 @@ export const api = {
         } else if (originalTodo.status === TodoStatus.DONE) {
             updatedTodo.completedAt = undefined;
         }
-    }
-    
-    if ('assigneeIds' in updates) {
-        const oldIds = new Set(originalTodo.assigneeIds || []);
-        const newIds = new Set(updates.assigneeIds || []);
-        const addedIds = [...newIds].filter(id => !oldIds.has(id));
-        const removedIds = [...oldIds].filter(id => !newIds.has(id));
-
-        addedIds.forEach(userId => {
-            const user = DB.users.find(u => u.id === userId);
-            if (user) {
-                addAuditLog({ actorId, action: 'TASK_ASSIGNED', target: { type: 'Task', id: updatedTodo.id, name: `${updatedTodo.text} (assigned to ${user.name})` }, projectId: updatedTodo.projectId });
-            }
-        });
-        
-        removedIds.forEach(userId => {
-            const user = DB.users.find(u => u.id === userId);
-            if (user) {
-                 addAuditLog({ actorId, action: 'TASK_ASSIGNED', target: { type: 'Task', id: updatedTodo.id, name: `${updatedTodo.text} (unassigned from ${user.name})` }, projectId: updatedTodo.projectId });
-            }
-        });
     }
     
     if (updates.subTasks) {
@@ -226,17 +192,7 @@ export const api = {
       await simulateDelay(300);
       const ts = DB.timesheets.find(t => t.id === timesheetId);
       if (!ts) throw new Error("Timesheet not found");
-      const actor = DB.users.find(u => u.id === actorId);
-      if (!actor) throw new Error("Actor not found");
-
-      if (hasPermission(actor, Permission.REVIEW_TIMESHEETS) && status === TimesheetStatus.APPROVED) {
-        ts.status = TimesheetStatus.PENDING_PM_APPROVAL; // Foreman "approves" to PM
-      } else if (hasPermission(actor, Permission.MANAGE_TIMESHEETS)) {
-        ts.status = status;
-      } else {
-        throw new Error("Permission denied");
-      }
-      
+      ts.status = status;
       if (status === TimesheetStatus.REJECTED) {
           ts.comment = reason;
       }
@@ -555,6 +511,20 @@ export const api = {
       await simulateDelay();
       if (!companyId) return [];
       return DB.resourceAssignments.filter(ra => ra.companyId === companyId);
+  },
+  createResourceAssignment: async (assignment: Omit<ResourceAssignment, 'id'>, actorId: number): Promise<ResourceAssignment> => {
+      await simulateDelay(300);
+      const newAssignment: ResourceAssignment = {
+          ...assignment,
+          id: DB.resourceAssignments.length + 1,
+      };
+      DB.resourceAssignments.push(newAssignment);
+      // TODO: Add audit log
+      return newAssignment;
+  },
+  deleteResourceAssignment: async (assignmentId: number, actorId: number): Promise<void> => {
+      await simulateDelay(200);
+      DB.resourceAssignments = DB.resourceAssignments.filter(ra => ra.id !== assignmentId);
   },
   getCompanySettings: async (companyId: number): Promise<CompanySettings> => {
       await simulateDelay();

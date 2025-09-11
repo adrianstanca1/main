@@ -1,13 +1,10 @@
-
-
-
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-// FIX: Add View and Location to imports to fix type mismatches.
-import { User, Project, Timesheet, WorkType, View, Location } from '../types';
+// FIX: Add View, Location, and CompanySettings to imports to fix type mismatches and use settings.
+import { User, Project, Timesheet, WorkType, View, Location, CompanySettings } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
-import { useGeolocation } from '../hooks/useGeolocation';
+import { useGeolocation, Geofence, GeofenceEvent } from '../hooks/useGeolocation';
 
 interface TimeTrackingViewProps {
   user: User;
@@ -38,8 +35,45 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToa
     const [checkOutPhoto, setCheckOutPhoto] = useState<File | null>(null);
     const checkInPhotoRef = useRef<HTMLInputElement>(null);
     const checkOutPhotoRef = useRef<HTMLInputElement>(null);
+    const [settings, setSettings] = useState<CompanySettings | null>(null);
 
-    const { data: geoData, error: geoError, loading: geoLoading, getLocation } = useGeolocation();
+    useEffect(() => {
+        if (user.companyId) {
+            api.getCompanySettings(user.companyId).then(setSettings);
+        }
+    }, [user.companyId]);
+
+    const geofences = useMemo((): Geofence[] => {
+        return projects
+            .filter(p => p.geofenceRadius && p.location)
+            .map(p => ({
+                id: p.id,
+                name: p.name,
+                lat: p.location.lat,
+                lng: p.location.lng,
+                radius: p.geofenceRadius!,
+            }));
+    }, [projects]);
+    
+    const handleGeofenceEvent = useCallback((event: GeofenceEvent, geofence: Geofence) => {
+        const title = `Geofence: ${geofence.name}`;
+        const body = event === 'enter' 
+            ? `You have entered the project site. Ready to clock in?`
+            : `You have left the project site. Don't forget to clock out!`;
+        
+        if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(title, { body, icon: '/favicon.svg' });
+        }
+        addToast(body, 'success');
+    }, [addToast]);
+
+    const enableHighAccuracy = useMemo(() => settings?.locationPreferences.gpsAccuracy === 'high', [settings]);
+
+    const { data: geoData, error: geoError, loading: geoLoading, getLocation, watchLocation, stopWatching, insideGeofenceIds } = useGeolocation({
+        geofences,
+        onGeofenceEvent: handleGeofenceEvent,
+        enableHighAccuracy,
+    });
     
     const fetchData = useCallback(async () => {
         try {
@@ -64,9 +98,24 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToa
     }, [user.id, addToast, selectedProjectId]);
     
     useEffect(() => {
-        getLocation();
-        fetchData();
+        getLocation(); // Get initial location
+        fetchData(); // Fetch projects, etc.
     }, [getLocation, fetchData]);
+
+    useEffect(() => {
+        const requestPermissionAndWatch = async () => {
+            if ('Notification' in window && Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+            watchLocation();
+        };
+
+        requestPermissionAndWatch();
+        
+        return () => {
+            stopWatching();
+        }
+    }, [watchLocation, stopWatching]);
 
     useEffect(() => {
         let timerId: number;
@@ -137,21 +186,67 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToa
         }
     };
     
+    const activeProject = useMemo(() => {
+        if (!activeTimesheet) return null;
+        return projects.find(p => p.id === activeTimesheet.projectId);
+    }, [activeTimesheet, projects]);
+    
+    const isClockedInAndOutsideGeofence = useMemo(() => {
+        if (!activeTimesheet || !activeTimesheet.projectId || !activeProject?.geofenceRadius) {
+            return false;
+        }
+        // Check if the set of inside geofences DOES NOT include the active project's ID
+        return !insideGeofenceIds.has(activeTimesheet.projectId);
+    }, [activeTimesheet, insideGeofenceIds, activeProject]);
+
     const isOnBreak = activeTimesheet?.breaks.some(b => b.endTime === null);
     const totalBreakMillis = activeTimesheet?.breaks
         .reduce((total, b) => total + ((b.endTime ? new Date(b.endTime).getTime() : new Date().getTime()) - new Date(b.startTime).getTime()), 0) || 0;
+    
+    const GeofenceWarningBanner: React.FC = () => {
+        if (!isClockedInAndOutsideGeofence) {
+            return null;
+        }
+        return (
+            <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 rounded-r-md" role="alert">
+                <div className="flex">
+                    <div className="py-1">
+                        <svg className="fill-current h-6 w-6 text-yellow-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zM9 5v6h2V5H9zm0 8v2h2v-2H9z"/></svg>
+                    </div>
+                    <div>
+                        <p className="font-bold">Geofence Alert</p>
+                        <p className="text-sm">You appear to be outside the project site for '{activeProject?.name}'. Your timesheet may be flagged for review.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
+    const GeofenceStatusIndicator: React.FC = () => {
+        if (!activeTimesheet || !activeProject?.geofenceRadius) {
+            return null;
+        }
+        const isInside = insideGeofenceIds.has(activeProject.id);
+        return (
+            <div className={`mt-2 text-xs flex items-center justify-center gap-1.5 ${isInside ? 'text-green-600' : 'text-yellow-600'}`}>
+                <div className={`w-2 h-2 rounded-full ${isInside ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
+                {isInside ? 'Inside project geofence' : 'Outside project geofence'}
+            </div>
+        );
+    };
 
     return (
         <div className="max-w-2xl mx-auto">
             <h2 className="text-3xl font-bold text-slate-800 mb-6 text-center">Time Tracking</h2>
             
+            <GeofenceWarningBanner />
+
             <Card className="mb-6 text-center">
                 <p className={`text-sm font-bold uppercase tracking-wider ${activeTimesheet ? 'text-green-600' : 'text-slate-500'}`}>
-                    {activeTimesheet ? 'Clocked In' : 'Not Clocked In'}
+                    {activeTimesheet ? `Clocked In to ${activeProject?.name}` : 'Not Clocked In'}
                 </p>
                 <p className="text-6xl font-bold my-2 text-slate-800 tabular-nums">{shiftTimer}</p>
-                <p className="text-sm text-slate-500">Current Time: {new Date().toLocaleTimeString()}</p>
+                 <GeofenceStatusIndicator />
             </Card>
 
             {activeTimesheet ? (
