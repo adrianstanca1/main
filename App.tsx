@@ -18,6 +18,7 @@ import { ProjectsView } from './components/ProjectsView';
 import { ChatView } from './components/ChatView';
 import { CommandPalette } from './components/CommandPalette';
 import { AISearchModal } from './components/AISearchModal';
+import { GeminiCLI } from './components/GeminiCLI';
 import { TemplatesView } from './components/TemplatesView';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useOfflineSync } from './hooks/useOfflineSync';
@@ -39,6 +40,7 @@ const App: React.FC = () => {
     const [theme, setTheme] = useState<'light' | 'dark'>('light');
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [isAiSearchOpen, setIsAiSearchOpen] = useState(false);
+    const [isGeminiCLIOpen, setIsGeminiCLIOpen] = useState(false);
     const [pendingTimesheetCount, setPendingTimesheetCount] = useState(0);
     const [openIncidentCount, setOpenIncidentCount] = useState(0);
     const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -226,6 +228,10 @@ const App: React.FC = () => {
                     user={user}
                     onClose={() => setIsCommandPaletteOpen(false)}
                     setActiveView={setActiveView}
+                    onOpenGeminiCLI={() => {
+                        setIsCommandPaletteOpen(false);
+                        setIsGeminiCLIOpen(true);
+                    }}
                 />
             )}
             {isAiSearchOpen && (
@@ -234,6 +240,11 @@ const App: React.FC = () => {
                     currentProject={selectedProject}
                     onClose={() => setIsAiSearchOpen(false)}
                     addToast={addToast}
+                />
+            )}
+            {isGeminiCLIOpen && (
+                <GeminiCLI
+                    onClose={() => setIsGeminiCLIOpen(false)}
                 />
             )}
             <div className="fixed bottom-4 right-4 z-[100] space-y-2">
