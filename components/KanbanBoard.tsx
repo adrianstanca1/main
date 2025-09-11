@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { Todo, TodoStatus, SubTask } from '../types';
+import { Todo, TodoStatus, SubTask, User } from '../types';
 import { TaskCard } from './TaskCard';
 import { Button } from './ui/Button';
 
 interface KanbanBoardProps {
     todos: Todo[];
     allTodos: Todo[];
+    personnel: User[];
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
     onAddTask: (status: TodoStatus, text: string) => Promise<void>;
@@ -17,13 +18,14 @@ interface KanbanColumnProps {
     status: TodoStatus;
     todos: Todo[];
     allTodos: Todo[]; // For context
+    personnel: User[];
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
     onAddTask: (status: TodoStatus, text: string) => Promise<void>;
     canManageTasks: boolean;
 }
 
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
+const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, personnel, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
     const [isOver, setIsOver] = useState(false);
     
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -65,6 +67,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
                         key={todo.id} 
                         todo={todo}
                         allTodos={allTodos}
+                        personnel={personnel}
                         onSelect={() => onSelectTask(todo)}
                         canManageTasks={canManageTasks}
                     />
@@ -74,16 +77,17 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
     );
 };
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, personnel, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
     const todoTasks = todos.filter(t => t.status === TodoStatus.TODO);
     const inProgressTasks = todos.filter(t => t.status === TodoStatus.IN_PROGRESS);
+    const pendingApprovalTasks = todos.filter(t => t.status === TodoStatus.PENDING_APPROVAL);
     const doneTasks = todos
         .filter(t => t.status === TodoStatus.DONE)
         .sort((a, b) => {
             // Sort by completion date, with nulls (older tasks without the field) first.
             const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
             const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-            return dateA - dateB;
+            return dateB - dateA; // Show most recently completed first
         });
     
     return (
@@ -93,6 +97,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
                 status={TodoStatus.TODO}
                 todos={todoTasks}
                 allTodos={allTodos}
+                personnel={personnel}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
@@ -103,6 +108,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
                 status={TodoStatus.IN_PROGRESS}
                 todos={inProgressTasks}
                 allTodos={allTodos}
+                personnel={personnel}
+                onUpdateTaskStatus={onUpdateTaskStatus}
+                onSelectTask={onSelectTask}
+                onAddTask={onAddTask}
+                canManageTasks={canManageTasks}
+            />
+             <KanbanColumn 
+                title="Pending Approval"
+                status={TodoStatus.PENDING_APPROVAL}
+                todos={pendingApprovalTasks}
+                allTodos={allTodos}
+                personnel={personnel}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
@@ -113,6 +130,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
                 status={TodoStatus.DONE}
                 todos={doneTasks}
                 allTodos={allTodos}
+                personnel={personnel}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}

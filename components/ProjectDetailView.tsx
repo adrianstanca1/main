@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Project, Todo, User, Permission, TodoStatus, TodoPriority, Comment, SubTask } from '../types';
+import { Project, Todo, User, Permission, TodoStatus, TodoPriority, Comment, SubTask, Role } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { KanbanBoard } from './KanbanBoard';
 import { hasPermission } from '../services/auth';
 import { queueAction, cacheTasks, getCachedTasks } from '../hooks/useOfflineSync';
+import { TodoStatusBadge } from './ui/StatusBadge';
+import { AssigneeSelector } from './ui/AssigneeSelector';
+
 
 // --- Reusable Components for ProjectDetailView ---
 
@@ -66,15 +69,6 @@ const AddTaskModal: React.FC<{
     );
 };
 
-const TodoStatusBadge: React.FC<{ status: TodoStatus }> = ({ status }) => {
-    const styles = {
-        [TodoStatus.TODO]: 'bg-slate-200 text-slate-700',
-        [TodoStatus.IN_PROGRESS]: 'bg-sky-200 text-sky-700',
-        [TodoStatus.DONE]: 'bg-green-200 text-green-700',
-    };
-    return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${styles[status]}`}>{status}</span>;
-};
-
 const TaskDetailModal: React.FC<{
     task: Todo;
     user: User;
@@ -89,6 +83,9 @@ const TaskDetailModal: React.FC<{
     const [newComment, setNewComment] = useState('');
     const [isCommenting, setIsCommenting] = useState(false);
     const userMap = useMemo(() => new Map(personnel.map(p => [p.id, p])), [personnel]);
+
+    const canApprove = hasPermission(user, Permission.APPROVE_TASKS);
+    const canManage = hasPermission(user, Permission.MANAGE_TASKS);
 
     const getInitials = (name: string) => {
         const parts = name.split(' ');
@@ -130,10 +127,25 @@ const TaskDetailModal: React.FC<{
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
             <Card className="w-full max-w-2xl h-auto max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold mb-2">{task.text}</h3>
-                <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="text-xl font-bold mb-2">{task.text}</h3>
+                        <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
+                    </div>
+                    <TodoStatusBadge status={task.status} />
+                </div>
                 <div className="flex-grow overflow-y-auto pr-2 space-y-6">
-                    {hasPermission(user, Permission.MANAGE_TASKS) && (
+                    {canManage && (
+                        <div>
+                            <h4 className="font-semibold text-slate-700 mb-2">Assignees</h4>
+                            <AssigneeSelector
+                                personnel={personnel}
+                                assignedIds={task.assigneeIds || []}
+                                onAssignmentChange={(newIds) => onUpdateTask({ assigneeIds: newIds })}
+                            />
+                        </div>
+                    )}
+                    {canManage && (
                          <div>
                             <h4 className="font-semibold text-slate-700 mb-2">Dependency</h4>
                             {currentParent ? (
@@ -194,6 +206,12 @@ const TaskDetailModal: React.FC<{
                         </div>
                     </div>
                 </div>
+                 {task.status === TodoStatus.PENDING_APPROVAL && canApprove && (
+                    <div className="mt-4 pt-4 border-t flex justify-end gap-2">
+                        <Button variant="danger" onClick={() => onUpdateTask({ status: TodoStatus.IN_PROGRESS })}>Needs Revision</Button>
+                        <Button variant="success" onClick={() => onUpdateTask({ status: TodoStatus.DONE })}>Approve Task</Button>
+                    </div>
+                )}
                 <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
                     <textarea value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md resize-none" rows={2} disabled={isCommenting} />
                     <Button type="submit" isLoading={isCommenting} disabled={!newComment.trim()}>Send</Button>
@@ -238,8 +256,9 @@ const ProjectInformationCard: React.FC<{ project: Project }> = ({ project }) => 
 const ProjectHeader: React.FC<{
     project: Project;
     personnelCount: number;
+    canInvite: boolean;
     onBack: () => void;
-}> = ({ project, personnelCount, onBack }) => {
+}> = ({ project, personnelCount, canInvite, onBack }) => {
     const statusStyles: Record<Project['status'], string> = { 
         'Active': 'bg-green-500/90', 
         'On Hold': 'bg-yellow-500/90', 
@@ -255,6 +274,13 @@ const ProjectHeader: React.FC<{
                     &larr; Back to Projects
                 </Button>
             </div>
+             {canInvite && (
+                 <div className="absolute top-4 right-4 z-10">
+                    <Button variant="secondary" className="bg-white/20 text-white hover:bg-white/30 border-white/30">
+                        Invite to Project
+                    </Button>
+                 </div>
+            )}
             <div className="absolute bottom-0 left-0 p-6 text-white w-full">
                 <div className="flex justify-between items-end">
                     <div>
@@ -296,6 +322,8 @@ export const ProjectDetailView: React.FC<ProjectDetailProps> = ({ project, user,
     const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
     
     const canManageTasks = useMemo(() => hasPermission(user, Permission.MANAGE_TASKS), [user]);
+    const canInvite = useMemo(() => hasPermission(user, Permission.INVITE_PROJECT_MEMBERS), [user]);
+
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -345,11 +373,17 @@ export const ProjectDetailView: React.FC<ProjectDetailProps> = ({ project, user,
     };
     
     const handleUpdateTodo = async (todoId: number | string, updates: Partial<Todo>) => {
+        if (updates.status === TodoStatus.DONE && user.role === Role.OPERATIVE) {
+            updates.status = TodoStatus.PENDING_APPROVAL;
+        }
+
         const originalTodos = todos;
         setTodos(prev => prev.map(t => t.id === todoId ? { ...t, ...updates, isOffline: !isOnline } : t));
         if (isOnline) {
             try {
-                await api.updateTodo(todoId, updates, user.id);
+                const updatedTodo = await api.updateTodo(todoId, updates, user.id);
+                // sync back with the server state in case the API modified it (e.g. status change)
+                setTodos(prev => prev.map(t => t.id === todoId ? updatedTodo : t));
             } catch (error) {
                 addToast(String(error), 'error');
                 setTodos(originalTodos);
@@ -405,7 +439,7 @@ export const ProjectDetailView: React.FC<ProjectDetailProps> = ({ project, user,
             {isAddTaskModalOpen && <AddTaskModal onClose={() => setIsAddTaskModalOpen(false)} onAdd={handleAddTask} />}
             {selectedTask && <TaskDetailModal task={selectedTask} user={user} projectName={project.name} personnel={personnel} allTodos={todos} onClose={() => setSelectedTask(null)} onUpdateSubtask={handleUpdateSubtask} onAddComment={handleAddComment} onUpdateTask={handleUpdateTaskDetails} />}
             
-            <ProjectHeader project={project} personnelCount={personnel.length} onBack={onBack} />
+            <ProjectHeader project={project} personnelCount={personnel.length} canInvite={canInvite} onBack={onBack} />
             
             <div className="space-y-8 mt-8">
                 <ProjectInformationCard project={project} />
@@ -414,7 +448,7 @@ export const ProjectDetailView: React.FC<ProjectDetailProps> = ({ project, user,
                      {loading ? (
                         <Card><p>Loading tasks...</p></Card>
                     ) : (
-                        <KanbanBoard todos={todos} allTodos={todos} onUpdateTaskStatus={(id, status) => handleUpdateTodo(id, { status })} onSelectTask={setSelectedTask} onAddTask={async () => {}} canManageTasks={canManageTasks} />
+                        <KanbanBoard todos={todos} allTodos={todos} personnel={personnel} onUpdateTaskStatus={(id, status) => handleUpdateTodo(id, { status })} onSelectTask={setSelectedTask} onAddTask={async () => {}} canManageTasks={canManageTasks} />
                     )}
                 </div>
             </div>
@@ -422,7 +456,7 @@ export const ProjectDetailView: React.FC<ProjectDetailProps> = ({ project, user,
             {canManageTasks && (
                 <div className="fixed bottom-8 right-8 z-40">
                     <Button size="lg" onClick={() => setIsAddTaskModalOpen(true)} className="rounded-full h-16 w-16 shadow-lg" aria-label="Add new task">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                     </Button>
