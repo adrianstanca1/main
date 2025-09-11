@@ -7,6 +7,7 @@ import { KanbanBoard } from './KanbanBoard';
 import { hasPermission } from '../services/auth';
 import { queueAction, cacheTasks, getCachedTasks } from '../hooks/useOfflineSync';
 import { MapView, MapMarker } from './MapView';
+import { ReminderControl } from './ReminderControl';
 
 // --- Reusable Components for ProjectDetailView ---
 
@@ -85,7 +86,9 @@ const TaskDetailModal: React.FC<{
     onClose: () => void;
     onAddComment: (text: string) => Promise<void>;
     onUpdateTask: (updates: Partial<Todo>) => void;
-}> = ({ task, user, projectName, personnel, allTodos, onClose, onAddComment, onUpdateTask }) => {
+    onReminderUpdate: () => void;
+    addToast: (message: string, type: 'success' | 'error') => void;
+}> = ({ task, user, projectName, personnel, allTodos, onClose, onAddComment, onUpdateTask, onReminderUpdate, addToast }) => {
     const [newComment, setNewComment] = useState('');
     const [isCommenting, setIsCommenting] = useState(false);
     const userMap = useMemo(() => new Map(personnel.map(p => [p.id, p])), [personnel]);
@@ -99,6 +102,7 @@ const TaskDetailModal: React.FC<{
     }, [task]);
 
     const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
+    const canEdit = canManageTasks && task.status !== TodoStatus.DONE;
 
     const getInitials = (name: string) => {
         const parts = name.split(' ');
@@ -222,7 +226,7 @@ const TaskDetailModal: React.FC<{
                     ) : (
                         <h3 className="text-xl font-bold">{task.text}</h3>
                     )}
-                    {canManageTasks && !isEditing && (
+                    {canEdit && !isEditing && (
                         <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
                     )}
                 </div>
@@ -233,7 +237,7 @@ const TaskDetailModal: React.FC<{
                             <label className="text-xs font-semibold text-slate-500 uppercase">Status</label>
                             {isEditing ? (
                                 <select value={editableTask.status} onChange={(e) => handleFieldChange('status', e.target.value as TodoStatus)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
-                                    {Object.values(TodoStatus).map(s => <option key={s} value={s}>{s}</option>)}
+                                    {Object.values(TodoStatus).map(s => <option key={String(s)} value={s}>{s}</option>)}
                                 </select>
                             ) : (<div className="mt-1"><TodoStatusBadge status={task.status} /></div>)}
                         </div>
@@ -241,7 +245,7 @@ const TaskDetailModal: React.FC<{
                             <label className="text-xs font-semibold text-slate-500 uppercase">Priority</label>
                             {isEditing ? (
                                 <select value={editableTask.priority} onChange={(e) => handleFieldChange('priority', e.target.value as TodoPriority)} className="w-full p-1.5 border rounded-md bg-white mt-1 text-sm">
-                                    {Object.values(TodoPriority).map(p => <option key={p} value={p}>{p}</option>)}
+                                    {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                                 </select>
                             ) : (<p className="font-medium mt-1">{task.priority}</p>)}
                         </div>
@@ -271,6 +275,17 @@ const TaskDetailModal: React.FC<{
                                 </select>
                             ) : (<p className="font-medium mt-1">{currentParent?.text || 'None'}</p>)}
                         </div>
+                         <div>
+                            <label className="text-xs font-semibold text-slate-500 uppercase">Reminder</label>
+                            <div className="mt-1">
+                                <ReminderControl 
+                                    todo={task} 
+                                    user={user} 
+                                    onReminderUpdate={onReminderUpdate} 
+                                    addToast={addToast}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <div>
@@ -286,7 +301,7 @@ const TaskDetailModal: React.FC<{
                         <div className="space-y-2">
                             {editableTask.subTasks?.map(st => (
                                 <div key={st.id} className="flex items-center gap-3 bg-slate-50 p-2 rounded-md">
-                                    <input type="checkbox" id={`subtask-${st.id}`} checked={st.completed} onChange={(e) => isEditing ? handleSubtaskChange(st.id, 'completed', e.target.checked) : onUpdateSubtaskCheckbox(st.id, e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" aria-label={st.text}/>
+                                    <input type="checkbox" id={`subtask-${st.id}`} checked={st.completed} onChange={(e) => isEditing ? handleSubtaskChange(st.id, 'completed', e.target.checked) : onUpdateSubtaskCheckbox(st.id, e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500" aria-label={st.text} disabled={task.status === TodoStatus.DONE} />
                                     {isEditing ? (
                                         <>
                                             <input type="text" value={st.text} onChange={(e) => handleSubtaskChange(st.id, 'text', e.target.value)} className="flex-grow p-1 border rounded-md text-sm"/>
@@ -329,7 +344,7 @@ const TaskDetailModal: React.FC<{
                                                 </div>
                                                 {editingComment?.id === comment.id ? (
                                                     <div>
-                                                        <textarea value={editingComment.text} onChange={e => setEditingComment(c => c ? { ...c, text: e.target.value } : null)} className="w-full p-2 border rounded-md text-sm" />
+                                                        <textarea value={editingComment.text} onChange={e => setEditingComment(c => c ? { ...c, text: e.target.value } : null)} className="w-full p-2 border rounded-md text-sm" rows={2}/>
                                                         <div className="flex gap-2 mt-1">
                                                             <Button size="sm" variant="secondary" onClick={handleCancelEditComment}>Cancel</Button>
                                                             <Button size="sm" onClick={handleSaveComment}>Save</Button>
@@ -340,9 +355,9 @@ const TaskDetailModal: React.FC<{
                                                 )}
                                             </div>
                                         </div>
-                                    )
+                                    );
                                 })}
-                                {(!task.comments || task.comments.length === 0) && <p className="text-sm text-slate-400">No comments yet.</p>}
+                                 {(!task.comments || task.comments.length === 0) && <p className="text-sm text-slate-400">No comments yet.</p>}
                             </div>
                         </div>
                     )}
@@ -354,7 +369,7 @@ const TaskDetailModal: React.FC<{
                     </div>
                 ) : (
                     <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
-                        <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md" disabled={isCommenting} />
+                        <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md" disabled={isCommenting}/>
                         <Button type="submit" isLoading={isCommenting} disabled={!newComment.trim()}>Send</Button>
                     </form>
                 )}
@@ -363,7 +378,7 @@ const TaskDetailModal: React.FC<{
     );
 };
 
-// --- Main Component ---
+
 interface ProjectDetailViewProps {
     project: Project;
     user: User;
@@ -374,204 +389,205 @@ interface ProjectDetailViewProps {
 }
 
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, user, onBack, addToast, isOnline, onStartChat }) => {
-    const [todos, setTodos] = useState<Todo[]>([]);
+    const [tasks, setTasks] = useState<Todo[]>([]);
     const [personnel, setPersonnel] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
     const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
     
     const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
-
+    
     const fetchData = useCallback(async () => {
         try {
-            if (isOnline) {
-                const [todosData, personnelData] = await Promise.all([
-                    api.getTodosByProject(project.id),
-                    api.getUsersByProject(project.id, user.companyId!)
-                ]);
-                setTodos(todosData);
-                setPersonnel(personnelData);
-                cacheTasks(project.id, todosData);
+            let cached = null;
+            if (!isOnline) {
+                cached = getCachedTasks(project.id);
+            }
+            
+            if(cached) {
+                setTasks(cached);
+                setLoading(false);
             } else {
-                const cached = getCachedTasks(project.id);
-                if (cached) setTodos(cached);
-                // Can't fetch personnel offline, might need a cache for that too
-                addToast("Showing cached task data.", "success");
+                const [tasksData, personnelData] = await Promise.all([
+                    api.getTodosByProject(project.id),
+                    api.getUsersByProject(project.id, user.companyId!),
+                ]);
+                
+                setTasks(tasksData);
+                setPersonnel(personnelData);
+
+                if (isOnline) {
+                    cacheTasks(project.id, tasksData);
+                }
             }
         } catch (error) {
-            addToast("Failed to load project details.", "error");
+            addToast("Failed to load project details.", 'error');
         } finally {
             setLoading(false);
         }
     }, [project.id, user.companyId, addToast, isOnline]);
-
+    
     useEffect(() => {
         setLoading(true);
         fetchData();
     }, [fetchData]);
-    
-    const handleUpdateTask = async (taskId: number | string, updates: Partial<Todo>) => {
-        const originalTasks = [...todos];
-        const updatedTask = { ...todos.find(t => t.id === taskId)!, ...updates };
-        setTodos(prev => prev.map(t => t.id === taskId ? updatedTask : t));
-        if (selectedTask?.id === taskId) setSelectedTask(updatedTask);
 
-        try {
-            if (isOnline) {
-                await api.updateTodo(taskId, updates, user.id);
-            } else {
-                queueAction({
-                    type: 'UPDATE_TODO',
-                    payload: { id: taskId, updates, actorId: user.id },
-                    projectId: project.id
-                });
-            }
-            addToast("Task updated.", "success");
-        } catch (error) {
-            addToast("Failed to update task.", "error");
-            setTodos(originalTasks); // Revert on failure
-            if (selectedTask?.id === taskId) setSelectedTask(originalTasks.find(t => t.id === taskId) || null);
-        }
-    };
-    
     const handleAddTask = async (taskData: { text: string; priority: TodoPriority; status: TodoStatus; }) => {
         const optimisticTodo: Todo = {
-            ...taskData,
             id: `offline_${Date.now()}`,
             projectId: project.id,
             creatorId: user.id,
+            text: taskData.text,
+            status: taskData.status,
+            priority: taskData.priority,
             createdAt: new Date(),
             isOffline: true,
         };
-        setTodos(prev => [optimisticTodo, ...prev]);
+
+        setTasks(prev => [optimisticTodo, ...prev]);
 
         try {
+            const payload = { ...taskData, projectId: project.id, creatorId: user.id };
             if (isOnline) {
-                const newTodo = await api.addTodo({ ...taskData, projectId: project.id, creatorId: user.id }, user.id);
-                setTodos(prev => prev.map(t => t.id === optimisticTodo.id ? newTodo : t));
+                const newTodo = await api.addTodo(payload, user.id);
+                setTasks(prev => prev.map(t => t.id === optimisticTodo.id ? newTodo : t));
+                cacheTasks(project.id, tasks.map(t => t.id === optimisticTodo.id ? newTodo : t));
             } else {
-                queueAction({
-                    type: 'ADD_TODO',
-                    payload: { ...taskData, projectId: project.id, creatorId: user.id },
-                    projectId: project.id,
-                });
+                queueAction({ type: 'ADD_TODO', payload, projectId: project.id });
+                cacheTasks(project.id, tasks);
             }
-            addToast("Task added successfully.", "success");
+            addToast("Task added successfully.", 'success');
         } catch (error) {
-            addToast("Failed to add task.", "error");
-            setTodos(prev => prev.filter(t => t.id !== optimisticTodo.id));
+            addToast("Failed to add task.", 'error');
+            setTasks(prev => prev.filter(t => t.id !== optimisticTodo.id));
         }
     };
     
-    const handleAddComment = async (text: string) => {
-        if (!selectedTask) return;
-        const optimisticComment: Comment = { id: `offline_comment_${Date.now()}`, creatorId: user.id, text, createdAt: new Date(), isOffline: true };
-        const updatedComments = [...(selectedTask.comments || []), optimisticComment];
-        handleUpdateTask(selectedTask.id, { comments: updatedComments }); // Optimistic update
+    const handleUpdateTaskStatus = async (todoId: number | string, newStatus: TodoStatus) => {
+        const originalTasks = [...tasks];
+        const updatedTasks = tasks.map(t => t.id === todoId ? { ...t, status: newStatus } : t);
+        setTasks(updatedTasks);
+        
+        try {
+            if (isOnline) {
+                await api.updateTodo(todoId, { status: newStatus }, user.id);
+                cacheTasks(project.id, updatedTasks);
+            } else {
+                queueAction({ type: 'UPDATE_TODO', payload: { id: todoId, updates: { status: newStatus }, actorId: user.id }, projectId: project.id });
+                cacheTasks(project.id, updatedTasks);
+            }
+        } catch (error) {
+            addToast("Failed to update task status.", 'error');
+            setTasks(originalTasks);
+        }
     };
 
-    const taskStats = useMemo(() => {
-        const total = todos.length;
-        const done = todos.filter(t => t.status === TodoStatus.DONE).length;
-        const progress = total > 0 ? (done / total) * 100 : 0;
-        return { total, done, progress };
-    }, [todos]);
+    const handleUpdateTask = async (updates: Partial<Todo>) => {
+        if (!selectedTask) return;
+        
+        const originalTasks = [...tasks];
+        const updatedTask = { ...selectedTask, ...updates, isOffline: !isOnline };
+        const updatedTasks = tasks.map(t => t.id === selectedTask.id ? updatedTask : t);
+        setTasks(updatedTasks);
+        setSelectedTask(updatedTask);
+        
+        try {
+            if (isOnline) {
+                await api.updateTodo(selectedTask.id, updates, user.id);
+                cacheTasks(project.id, updatedTasks.map(t => t.id === updatedTask.id ? { ...updatedTask, isOffline: false } : t));
+            } else {
+                 queueAction({ type: 'UPDATE_TODO', payload: { id: selectedTask.id, updates, actorId: user.id }, projectId: project.id });
+                 cacheTasks(project.id, updatedTasks);
+            }
+            addToast("Task updated.", 'success');
+        } catch (error) {
+            addToast("Failed to update task.", 'error');
+            setTasks(originalTasks);
+            setSelectedTask(originalTasks.find(t => t.id === selectedTask.id) || null);
+        }
+    };
+
+    const handleAddComment = async (text: string) => {
+        if (!selectedTask) return;
+        const optimisticComment: Comment = {
+            id: `offline_comment_${Date.now()}`,
+            creatorId: user.id,
+            text,
+            createdAt: new Date(),
+        };
+        const updatedTask = { ...selectedTask, comments: [...(selectedTask.comments || []), optimisticComment] };
+        handleUpdateTask({ comments: updatedTask.comments });
+    };
+
+    if (loading) return <Card>Loading project details...</Card>;
+
+    const mapMarkers: MapMarker[] = [{
+        lat: project.location.lat,
+        lng: project.location.lng,
+        radius: project.geofenceRadius,
+        popupContent: project.name,
+    }];
     
-    const mapMarkers = useMemo((): MapMarker[] => {
-        return [{
-            lat: project.location.lat,
-            lng: project.location.lng,
-            radius: project.geofenceRadius,
-            popupContent: project.name,
-        }]
-    }, [project]);
-
-    if (loading) return <Card><p>Loading project details...</p></Card>;
-
     return (
         <div className="space-y-6">
+            {isAddTaskModalOpen && <AddTaskModal onClose={() => setIsAddTaskModalOpen(false)} onAdd={handleAddTask} />}
             {selectedTask && (
-                <TaskDetailModal
-                    task={selectedTask}
-                    user={user}
+                <TaskDetailModal 
+                    task={selectedTask} 
+                    user={user} 
                     projectName={project.name}
                     personnel={personnel}
-                    allTodos={todos}
+                    allTodos={tasks}
                     onClose={() => setSelectedTask(null)}
-                    onUpdateTask={(updates) => handleUpdateTask(selectedTask.id, updates)}
                     onAddComment={handleAddComment}
+                    onUpdateTask={handleUpdateTask}
+                    onReminderUpdate={fetchData}
+                    addToast={addToast}
                 />
             )}
-            {isAddTaskModalOpen && <AddTaskModal onClose={() => setIsAddTaskModalOpen(false)} onAdd={handleAddTask} />}
-            
             <div className="flex justify-between items-center">
-                <div>
-                    <Button onClick={onBack} variant="ghost" className="mb-2 -ml-4">&larr; All Projects</Button>
-                    <h2 className="text-3xl font-bold text-slate-800">{project.name}</h2>
-                    <p className="text-slate-500">{project.location.address}</p>
-                </div>
-                {canManageTasks && <Button onClick={() => setIsAddTaskModalOpen(true)}>+ Add Task</Button>}
+                <Button variant="ghost" onClick={onBack}>&larr; Back to Projects</Button>
+                {canManageTasks && <Button onClick={() => setIsAddTaskModalOpen(true)}>Add Task</Button>}
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                 <Card>
-                    <h4 className="text-sm font-medium text-slate-500">Status</h4>
-                    <p className={`text-2xl font-bold ${project.status === 'Active' ? 'text-green-600' : 'text-slate-800'}`}>{project.status}</p>
-                </Card>
-                <Card>
-                    <h4 className="text-sm font-medium text-slate-500">Task Progress</h4>
-                    <p className="text-2xl font-bold">{taskStats.done} / {taskStats.total}</p>
-                    <div className="w-full bg-slate-200 rounded-full h-2 mt-1">
-                        <div className="bg-green-500 h-2 rounded-full" style={{ width: `${taskStats.progress}%` }}></div>
-                    </div>
-                </Card>
-                <Card>
-                    <h4 className="text-sm font-medium text-slate-500">Budget</h4>
-                    <p className="text-2xl font-bold">{new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(project.budget)}</p>
-                </Card>
-                <Card>
-                    <h4 className="text-sm font-medium text-slate-500">Team Size</h4>
-                    <p className="text-2xl font-bold">{personnel.length} Members</p>
-                </Card>
-            </div>
+            <h2 className="text-3xl font-bold text-slate-800">{project.name}</h2>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
+                    <Card>
+                        <h3 className="font-semibold text-lg mb-2">Project Overview</h3>
+                        <p className="text-sm text-slate-600">{project.projectType} - {project.workClassification}</p>
+                    </Card>
+                    <MapView markers={mapMarkers} height="h-64" />
+                </div>
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
-                        <h3 className="font-semibold text-lg mb-2">Location</h3>
-                        <MapView markers={mapMarkers} height="h-60" />
-                    </Card>
-                    <Card>
-                        <h3 className="font-semibold text-lg mb-4">Project Personnel</h3>
+                        <h3 className="font-semibold text-lg mb-4">Team</h3>
                         <div className="space-y-3">
                             {personnel.map(p => (
                                 <div key={p.id} className="flex justify-between items-center">
                                     <span>{p.name}</span>
-                                    {user.id !== p.id && (
-                                        <Button size="sm" variant="ghost" onClick={() => onStartChat(p)}>
-                                            Chat
-                                        </Button>
-                                    )}
+                                    <Button size="sm" variant="ghost" onClick={() => onStartChat(p)}>Chat</Button>
                                 </div>
                             ))}
                         </div>
                     </Card>
                 </div>
+            </div>
 
-                <div className="lg:col-span-2">
-                     <KanbanBoard
-                        todos={todos}
-                        allTodos={todos}
-                        onUpdateTaskStatus={(id, status) => handleUpdateTask(id, { status })}
-                        onSelectTask={setSelectedTask}
-                        onAddTask={handleAddTask}
-                        canManageTasks={canManageTasks}
-                        user={user}
-                        addToast={addToast}
-                        onReminderUpdate={fetchData}
-                        personnel={personnel}
-                    />
-                </div>
+            <div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-4">Task Board</h3>
+                <KanbanBoard 
+                    todos={tasks}
+                    allTodos={tasks}
+                    onUpdateTaskStatus={handleUpdateTaskStatus}
+                    onSelectTask={setSelectedTask}
+                    onAddTask={handleAddTask}
+                    canManageTasks={canManageTasks}
+                    user={user}
+                    addToast={addToast}
+                    onReminderUpdate={fetchData}
+                    personnel={personnel}
+                />
             </div>
         </div>
     );

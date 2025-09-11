@@ -111,7 +111,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
             {canManageTasks && !isDone && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); onSelect(); }} 
-                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/10 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/10 hover:bg-black/20 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                     title="Edit Task"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -136,36 +136,36 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
                     {isBlocked && (
                        <div title={`Blocked by: "${dependency?.text}"`}>
                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-600" viewBox="0 0 20 20" fill="currentColor">
-                               <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                               <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
                            </svg>
                        </div>
                     )}
+                    {assignee && <Avatar name={assignee.name} className="w-6 h-6 text-xs" title={`Assigned to ${assignee.name}`} />}
                 </div>
             </div>
-            
-            {!isDone && (
-                 <div className="flex items-center justify-between text-xs text-gray-700 mt-3 font-sans">
-                     <div className="flex items-center gap-3">
-                        <ReminderControl todo={todo} user={user} onReminderUpdate={onReminderUpdate} addToast={addToast} />
-                        {todo.dueDate && (
-                            <div className={`font-semibold flex items-center gap-1.5 ${isOverdue ? 'text-red-700' : ''}`} title={isOverdue ? 'This task is overdue' : ''}>
-                                {isOverdue && (
-                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.414-1.415L11 9.586V6z" clipRule="evenodd" />
-                                    </svg>
-                                )}
-                                <span>{new Date(todo.dueDate).toLocaleDateString()}</span>
-                            </div>
-                        )}
-                     </div>
-                    <div className="flex items-center gap-2">
-                        {assignee && <Avatar name={assignee.name} className="w-6 h-6 text-xs" title={`Assigned to ${assignee.name}`} />}
-                        <div className="font-semibold text-right">
-                            #{typeof todo.id === 'number' ? todo.id.toString().slice(-4) : '...'}
+
+            <div className="mt-3 flex justify-between items-end">
+                <div className="text-xs text-slate-500 space-y-1">
+                    {todo.dueDate && (
+                         <div className={`flex items-center gap-1.5 ${isOverdue ? 'font-bold text-red-600' : ''}`}>
+                            {isOverdue && (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                            )}
+                            <span>{isOverdue ? 'Overdue:' : 'Due:'} {new Date(todo.dueDate).toLocaleDateString()}</span>
                         </div>
+                    )}
+                     <div className="flex items-center gap-1.5">
+                        <PriorityDisplay priority={todo.priority} />
                     </div>
                 </div>
-            )}
+                {!isDone && todo.dueDate && (
+                    <div onClick={e => e.stopPropagation()}>
+                        <ReminderControl todo={todo} user={user} addToast={addToast} onReminderUpdate={onReminderUpdate} />
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

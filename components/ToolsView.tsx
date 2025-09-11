@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // FIX: Import Tool and ToolStatus types.
 import { User, View, Tool, ToolStatus } from '../types';

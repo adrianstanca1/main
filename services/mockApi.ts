@@ -7,7 +7,7 @@ import {
   ChatMessage, Conversation, DocumentAcknowledgement, OperativeReport, WeatherForecast,
   ProjectPhoto, Grant, RiskAnalysis, BidPackage, AISearchResult,
   DocumentStatus, Comment, WorkType, Location, EquipmentStatus, AuditLogAction, FinancialKPIs, InvoiceLineItem,
-  ProjectTemplate
+  ProjectTemplate, SubTask
 } from '../types';
 import { MOCK_DATA, simulateDelay } from './mockData';
 import { GoogleGenAI, GenerateContentResponse, Part, Modality } from "@google/genai";

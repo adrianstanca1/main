@@ -183,6 +183,7 @@ const TaskDetailModal: React.FC<{
                                         onChange={(e) => isEditing ? handleSubtaskChange(st.id, 'completed', e.target.checked) : onUpdateSubtaskCheckbox(st.id, e.target.checked)}
                                         className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
                                         aria-label={st.text}
+                                        disabled={task.status === TodoStatus.DONE}
                                     />
                                     {isEditing ? (
                                         <>
