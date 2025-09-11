@@ -105,13 +105,13 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
             draggable={canManageTasks && !isBlocked}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
-            className={`post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105' : ''} group relative`}
+            className={`group post-it ${styles.bg} ${styles.rotation} ${cursorClass} transition-all duration-500 ease-in-out ${statusClasses} ${!isDone ? 'hover:scale-105' : ''} relative`}
             title={cardTitle || undefined}
         >
             {canManageTasks && !isDone && (
                 <button 
                     onClick={(e) => { e.stopPropagation(); onSelect(); }} 
-                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/10 hover:bg-black/20 text-slate-700 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    className="absolute top-1 right-1 p-1.5 rounded-full bg-black/5 hover:bg-black/20 text-slate-700 transition-colors z-10 opacity-0 group-hover:opacity-100"
                     title="Edit Task"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

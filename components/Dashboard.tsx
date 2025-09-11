@@ -17,12 +17,11 @@ const TaskDetailModal: React.FC<{
     projectName: string;
     personnel: User[];
     onClose: () => void;
-    onUpdateSubtask: (subtaskId: number, completed: boolean) => void;
     onAddComment: (text: string) => void;
     onUpdateTask: (updates: Partial<Todo>) => void;
     onReminderUpdate: () => void;
     addToast: (message: string, type: 'success' | 'error') => void;
-}> = ({ task, user, projectName, personnel, onClose, onUpdateSubtask, onAddComment, onUpdateTask, onReminderUpdate, addToast }) => {
+}> = ({ task, user, projectName, personnel, onClose, onAddComment, onUpdateTask, onReminderUpdate, addToast }) => {
     const [newComment, setNewComment] = useState('');
     const userMap = useMemo(() => new Map(personnel.map(p => [p.id, p])), [personnel]);
     
@@ -86,6 +85,12 @@ const TaskDetailModal: React.FC<{
         onAddComment(newComment);
         setNewComment('');
     };
+    
+    const subtaskProgress = useMemo(() => {
+        if (!editableTask.subTasks || editableTask.subTasks.length === 0) return 0;
+        const completed = editableTask.subTasks.filter(st => st.completed).length;
+        return (completed / editableTask.subTasks.length) * 100;
+    }, [editableTask.subTasks]);
 
     const creatorName = userMap.get(task.creatorId)?.name;
     const dueDateForInput = editableTask.dueDate ? new Date(editableTask.dueDate).toISOString().split('T')[0] : '';
@@ -103,7 +108,7 @@ const TaskDetailModal: React.FC<{
                     ) : (
                         <h3 className="text-xl font-bold">{task.text}</h3>
                     )}
-                    {canManageTasks && !isEditing && (
+                    {canManageTasks && !isEditing && task.status !== TodoStatus.DONE && (
                         <Button variant="secondary" size="sm" onClick={() => setIsEditing(true)}>Edit</Button>
                     )}
                 </div>
@@ -176,6 +181,17 @@ const TaskDetailModal: React.FC<{
                     {/* Sub-tasks */}
                     <div>
                         <h4 className="font-semibold text-slate-700 mb-2">Sub-tasks</h4>
+                         {editableTask.subTasks && editableTask.subTasks.length > 0 && (
+                            <div className="mb-2">
+                                <div className="flex justify-between text-xs font-medium text-slate-500 mb-1">
+                                    <span>Progress</span>
+                                    <span>{Math.round(subtaskProgress)}%</span>
+                                </div>
+                                <div className="w-full bg-slate-200 rounded-full h-2">
+                                    <div className="bg-green-500 h-2 rounded-full transition-all" style={{ width: `${subtaskProgress}%` }}></div>
+                                </div>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             {editableTask.subTasks?.map(st => (
                                 <div key={st.id} className="flex items-center gap-3 bg-slate-50 p-2 rounded-md">
@@ -183,9 +199,10 @@ const TaskDetailModal: React.FC<{
                                         type="checkbox"
                                         id={`subtask-${st.id}`}
                                         checked={st.completed}
-                                        onChange={(e) => isEditing ? handleSubtaskChange(st.id, 'completed', e.target.checked) : onUpdateSubtask(st.id, !st.completed)}
-                                        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                        onChange={(e) => handleSubtaskChange(st.id, 'completed', e.target.checked)}
+                                        className="h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-70"
                                         aria-label={st.text}
+                                        disabled={!isEditing}
                                     />
                                     {isEditing ? (
                                         <>
@@ -195,7 +212,9 @@ const TaskDetailModal: React.FC<{
                                                 onChange={(e) => handleSubtaskChange(st.id, 'text', e.target.value)}
                                                 className="flex-grow p-1 border rounded-md text-sm"
                                             />
-                                            <button onClick={() => handleDeleteSubtask(st.id)} className="text-red-500 text-xs font-bold">X</button>
+                                            <button onClick={() => handleDeleteSubtask(st.id)} className="text-red-500 hover:text-red-700 p-1" title="Delete subtask">
+                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
                                         </>
                                     ) : (
                                         <label htmlFor={`subtask-${st.id}`} className={`flex-grow ${st.completed ? 'line-through text-slate-500' : ''}`}>{st.text}</label>
@@ -675,14 +694,6 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
 
     const handleOpenTaskModal = (task: Todo) => setSelectedTask(task);
     
-    const handleUpdateSubtask = async (subtaskId: number, completed: boolean) => {
-        if (!selectedTask) return;
-        const updatedSubtasks = selectedTask.subTasks?.map(st => st.id === subtaskId ? { ...st, completed } : st);
-        const updatedTask = await api.updateTodo(selectedTask.id, { subTasks: updatedSubtasks }, user.id);
-        setSelectedTask(updatedTask);
-        setTasks(tasks.map(t => t.id === selectedTask.id ? updatedTask : t));
-    };
-
     const handleAddComment = async (text: string) => {
         if (!selectedTask) return;
         const newComment = await api.addComment(selectedTask.id, text, user.id);
@@ -702,7 +713,6 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiv
                 projectName={projects.find(p => p.id === selectedTask.projectId)?.name || ''} 
                 personnel={companyUsers}
                 onClose={() => setSelectedTask(null)} 
-                onUpdateSubtask={handleUpdateSubtask} 
                 onAddComment={handleAddComment} 
                 onUpdateTask={handleUpdateTask}
                 onReminderUpdate={fetchData}

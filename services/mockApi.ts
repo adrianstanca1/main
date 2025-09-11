@@ -140,21 +140,39 @@ export const api = {
 
     // --- Audit Logging ---
     if (updates.status && updates.status !== originalTodo.status) {
-        addAuditLog({ actorId, action: 'TASK_UPDATED' as AuditLogAction, target: { type: 'Task', id: updatedTodo.id, name: updatedTodo.text }, projectId: updatedTodo.projectId });
+        addAuditLog({ actorId, action: 'TASK_UPDATED' as AuditLogAction, target: { type: 'Task', id: updatedTodo.id, name: `status changed to ${updates.status}` }, projectId: updatedTodo.projectId });
         if (updates.status === TodoStatus.DONE) {
             updatedTodo.completedAt = new Date();
+            addAuditLog({ actorId, action: 'TASK_COMPLETED', target: { type: 'Task', id: updatedTodo.id, name: updatedTodo.text }, projectId: updatedTodo.projectId });
         } else if (originalTodo.status === TodoStatus.DONE) {
             updatedTodo.completedAt = undefined;
         }
     }
     
     if (updates.subTasks) {
-        const originalSubtasks = new Map(originalTodo.subTasks?.map(st => [st.id, st.completed]));
-        const changedSubtask = updatedTodo.subTasks?.find(st => originalSubtasks.get(st.id) !== st.completed);
-        if (changedSubtask) {
-             const statusText = changedSubtask.completed ? 'complete' : 'incomplete';
-             addAuditLog({ actorId, action: 'TASK_UPDATED' as AuditLogAction, target: { type: 'Task', id: updatedTodo.id, name: `sub-task "${changedSubtask.text}" marked as ${statusText}` }, projectId: updatedTodo.projectId });
-        }
+        const originalSubtasksMap = new Map((originalTodo.subTasks || []).map(st => [st.id, st]));
+        const updatedSubtasksMap = new Map((updates.subTasks || []).map(st => [st.id, st]));
+
+        updatedSubtasksMap.forEach((updatedSubtask, id) => {
+            const originalSubtask = originalSubtasksMap.get(id);
+            if (!originalSubtask) {
+                addAuditLog({ actorId, action: 'TASK_UPDATED', target: { type: 'Task', id: updatedTodo.id, name: `sub-task "${updatedSubtask.text}" added` }, projectId: updatedTodo.projectId });
+            } else {
+                if (originalSubtask.completed !== updatedSubtask.completed) {
+                    const statusText = updatedSubtask.completed ? 'complete' : 'incomplete';
+                    addAuditLog({ actorId, action: 'TASK_UPDATED', target: { type: 'Task', id: updatedTodo.id, name: `sub-task "${updatedSubtask.text}" marked as ${statusText}` }, projectId: updatedTodo.projectId });
+                }
+                if (originalSubtask.text !== updatedSubtask.text) {
+                     addAuditLog({ actorId, action: 'TASK_UPDATED', target: { type: 'Task', id: updatedTodo.id, name: `sub-task renamed to "${updatedSubtask.text}"` }, projectId: updatedTodo.projectId });
+                }
+            }
+        });
+
+        originalSubtasksMap.forEach((originalSubtask, id) => {
+            if (!updatedSubtasksMap.has(id)) {
+                addAuditLog({ actorId, action: 'TASK_UPDATED', target: { type: 'Task', id: updatedTodo.id, name: `sub-task "${originalSubtask.text}" deleted` }, projectId: updatedTodo.projectId });
+            }
+        });
     }
     
     if ('dependsOn' in updates) {
