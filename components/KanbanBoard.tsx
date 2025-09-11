@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 
 interface KanbanBoardProps {
     todos: Todo[];
+    allTodos: Todo[];
     onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
     onSelectTask: (task: Todo) => void;
     onAddTask: (status: TodoStatus, text: string) => Promise<void>;
@@ -73,10 +74,17 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
     );
 };
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks }) => {
     const todoTasks = todos.filter(t => t.status === TodoStatus.TODO);
     const inProgressTasks = todos.filter(t => t.status === TodoStatus.IN_PROGRESS);
-    const doneTasks = todos.filter(t => t.status === TodoStatus.DONE);
+    const doneTasks = todos
+        .filter(t => t.status === TodoStatus.DONE)
+        .sort((a, b) => {
+            // Sort by completion date, with nulls (older tasks without the field) first.
+            const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+            const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+            return dateA - dateB;
+        });
     
     return (
         <div className="whiteboard-bg flex gap-6 overflow-x-auto pb-4">
@@ -84,7 +92,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, onUpdateTaskSta
                 title="To Do"
                 status={TodoStatus.TODO}
                 todos={todoTasks}
-                allTodos={todos}
+                allTodos={allTodos}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
@@ -94,7 +102,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, onUpdateTaskSta
                 title="In Progress"
                 status={TodoStatus.IN_PROGRESS}
                 todos={inProgressTasks}
-                allTodos={todos}
+                allTodos={allTodos}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}
@@ -104,7 +112,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, onUpdateTaskSta
                 title="Done"
                 status={TodoStatus.DONE}
                 todos={doneTasks}
-                allTodos={todos}
+                allTodos={allTodos}
                 onUpdateTaskStatus={onUpdateTaskStatus}
                 onSelectTask={onSelectTask}
                 onAddTask={onAddTask}

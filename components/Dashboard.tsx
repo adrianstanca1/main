@@ -253,14 +253,40 @@ const ProjectCard: React.FC<{ project: Project; onSelect: () => void }> = ({ pro
     );
 };
 
+const formatDistanceToNow = (date: Date): string => {
+    const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+    return Math.floor(seconds) + " seconds ago";
+};
+
+const AuditLogIcon: React.FC<{ action: AuditLogAction }> = ({ action }) => {
+    const iconMap: Record<string, JSX.Element> = {
+        'Task': <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>,
+        'Document': <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+        'Timesheet': <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+        'Safety': <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>,
+        'Project': <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+    };
+    const key = Object.keys(iconMap).find(k => action.toLowerCase().includes(k.toLowerCase())) || 'Project';
+    return iconMap[key];
+};
+
 const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectProject, setActiveView }) => {
     const [projects, setProjects] = useState<Project[]>([]);
-    const [tasks, setTasks] = useState<Todo[]>([]);
-    const [equipment, setEquipment] = useState<Equipment[]>([]);
-    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+    const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
     const [companyUsers, setCompanyUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
     const [isAnnouncementModalOpen, setIsAnnouncementModalOpen] = useState(false);
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -276,20 +302,16 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
                 projectsPromise = api.getProjectsByUser(user.id);
             }
 
-            const [fetchedProjects, usersData, equipData, announcementData] = await Promise.all([
+            const [fetchedProjects, usersData, logsData, announcementData] = await Promise.all([
                 projectsPromise,
                 api.getUsersByCompany(user.companyId),
-                api.getEquipmentByCompany(user.companyId),
+                api.getAuditLogsForUserProjects(user.id),
                 api.getAnnouncementsForCompany(user.companyId)
             ]);
 
-            const projectIds = fetchedProjects.map(p => p.id);
-            const tasksData = await api.getTodosByProjectIds(projectIds);
-
             setProjects(fetchedProjects);
             setCompanyUsers(usersData);
-            setEquipment(equipData);
-            setTasks(tasksData);
+            setAuditLogs(logsData);
             setAnnouncements(announcementData.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
 
         } catch (error) {
@@ -302,11 +324,8 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
     useEffect(() => {
         fetchData();
     }, [fetchData]);
-
-    const equipmentInUse = equipment.filter(e => e.status === 'In Use').length;
-    const totalEquipment = equipment.length;
-    const utilizationRate = totalEquipment > 0 ? (equipmentInUse / totalEquipment) * 100 : 0;
-    const canSendAnnouncement = hasPermission(user, Permission.SEND_ANNOUNCEMENT);
+    
+    const userMap = useMemo(() => new Map(companyUsers.map(u => [u.id, u])), [companyUsers]);
 
     if (loading) {
         return <Card><p>Loading dashboard...</p></Card>;
@@ -317,17 +336,37 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
             {isAnnouncementModalOpen && <SendAnnouncementModal user={user} onClose={() => setIsAnnouncementModalOpen(false)} onSent={fetchData} addToast={addToast} />}
             <h2 className="text-3xl font-bold text-slate-800">Welcome back, {user.name.split(' ')[0]}!</h2>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
                  <div className="lg:col-span-2 space-y-6">
                     <div>
                         <h3 className="text-2xl font-bold text-slate-800 mb-4">My Projects</h3>
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {projects.map(project => (
+                            {projects.slice(0, 4).map(project => (
                                 <ProjectCard key={project.id} project={project} onSelect={() => onSelectProject(project)} />
                             ))}
                         </div>
                         {projects.length === 0 && <Card><p className="text-center text-slate-500">You are not assigned to any projects yet.</p></Card>}
+                        {projects.length > 4 && <Button variant="secondary" className="w-full mt-4" onClick={() => setActiveView('projects')}>View All Projects</Button>}
                     </div>
+                     <Card>
+                        <h3 className="font-semibold text-lg mb-4">Recent Activity</h3>
+                        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                            {auditLogs.slice(0, 10).map(log => (
+                                <div key={log.id} className="flex items-start gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 text-slate-500">
+                                        <AuditLogIcon action={log.action} />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-slate-800">
+                                            <span className="font-semibold">{userMap.get(log.actorId)?.name || 'Unknown User'}</span> {log.action.toLowerCase().replace(/_/g, ' ')} <span className="font-semibold">{log.target?.name}</span>
+                                            {log.projectId && <span className="text-slate-500"> in {projects.find(p=>p.id === log.projectId)?.name}</span>}
+                                        </p>
+                                        <p className="text-xs text-slate-400">{formatDistanceToNow(log.timestamp)}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
                 </div>
                  <div className="lg:col-span-1 space-y-6">
                     <Card>
@@ -335,7 +374,7 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
                         <div className="space-y-2">
                            {hasPermission(user, Permission.MANAGE_PROJECTS) && <Button className="w-full" variant="secondary" onClick={() => setActiveView('projects')}>Add New Project</Button>}
                            {hasPermission(user, Permission.MANAGE_TEAM) && <Button className="w-full" variant="secondary" onClick={() => setActiveView('users')}>Manage Team</Button>}
-                           {canSendAnnouncement && <Button className="w-full" variant="secondary" onClick={() => setIsAnnouncementModalOpen(true)}>Send Announcement</Button>}
+                           {hasPermission(user, Permission.SEND_ANNOUNCEMENT) && <Button className="w-full" variant="secondary" onClick={() => setIsAnnouncementModalOpen(true)}>Send Announcement</Button>}
                         </div>
                     </Card>
                     <Card>
@@ -347,10 +386,11 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
                                         <h4 className="font-semibold text-slate-700">{ann.title}</h4>
                                         <span className={`text-xs px-2 py-0.5 rounded-full ${ann.scope === 'platform' ? 'bg-sky-100 text-sky-800' : 'bg-slate-100'}`}>{ann.scope}</span>
                                     </div>
-                                    <p className="text-xs text-slate-500">By {companyUsers.find(u => u.id === ann.senderId)?.name || 'System'}</p>
+                                    <p className="text-xs text-slate-500">By {userMap.get(ann.senderId)?.name || 'System'}</p>
                                     <p className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">{ann.content}</p>
                                 </div>
                             ))}
+                             {announcements.length === 0 && <p className="text-slate-500 text-center py-4">No recent announcements.</p>}
                         </div>
                     </Card>
                 </div>
@@ -359,23 +399,22 @@ const TenantDashboard: React.FC<DashboardProps> = ({ user, addToast, onSelectPro
     );
 };
 
-const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast }) => {
+const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast, setActiveView }) => {
     const [loading, setLoading] = useState(true);
     const [projects, setProjects] = useState<Project[]>([]);
     const [tasks, setTasks] = useState<Todo[]>([]);
     const [documents, setDocuments] = useState<Document[]>([]);
     const [acks, setAcks] = useState<DocumentAcknowledgement[]>([]);
-    const [timesheets, setTimesheets] = useState<Timesheet[]>([]);
     const [activeTimesheet, setActiveTimesheet] = useState<Timesheet | null>(null);
-    const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+    const [weather, setWeather] = useState<WeatherForecast | null>(null);
     const [shiftTimer, setShiftTimer] = useState<string>('00:00:00');
-    const [isClockingIn, setIsClockingIn] = useState(false);
-    const [isClockingOut, setIsClockingOut] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
     const [isReportModalOpen, setIsReportModalOpen] = useState(false);
-    const [weather, setWeather] = useState<WeatherForecast | null>(null);
-
-    const { data: geoData, error: geoError, loading: geoLoading, getLocation } = useGeolocation();
+    
+    const activeProject = useMemo(() => {
+        if (!activeTimesheet) return null;
+        return projects.find(p => p.id === activeTimesheet.projectId);
+    }, [activeTimesheet, projects]);
 
     const fetchData = useCallback(async () => {
         if (!user.companyId) return;
@@ -384,50 +423,40 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast }) => {
             setProjects(userProjects);
 
             const timesheetsData = await api.getTimesheetsByUser(user.id);
-            setTimesheets(timesheetsData);
             const currentActiveTimesheet = timesheetsData.find(t => t.clockOut === null) || null;
             setActiveTimesheet(currentActiveTimesheet);
             
-            const activeProjectId = currentActiveTimesheet?.projectId;
-            let projectToLoadId: number | null = activeProjectId || (userProjects.length > 0 ? userProjects[0].id : null);
-            
-            if (!selectedProjectId && projectToLoadId) {
-                setSelectedProjectId(projectToLoadId.toString());
-            } else if (selectedProjectId) {
-                projectToLoadId = parseInt(selectedProjectId, 10);
+            const activeProj = userProjects.find(p => p.id === currentActiveTimesheet?.projectId);
+            if (activeProj) {
+                const weatherData = await api.getWeatherForecast(activeProj.location.lat, activeProj.location.lng);
+                setWeather(weatherData);
+            } else {
+                setWeather(null);
             }
             
-            if (projectToLoadId) {
-                const [tasksData, docsData, acksData, weatherData] = await Promise.all([
-                    api.getTodosByProjectIds([projectToLoadId]),
-                    api.getDocumentsByProjectIds([projectToLoadId]),
+            const projectIds = userProjects.map(p => p.id);
+            if (projectIds.length > 0) {
+                 const [tasksData, docsData, acksData] = await Promise.all([
+                    api.getTodosByProjectIds(projectIds),
+                    api.getDocumentsByProjectIds(projectIds),
                     api.getDocumentAcksForUser(user.id),
-                    api.getWeatherForProject(projectToLoadId),
                 ]);
                 setTasks(tasksData);
                 setDocuments(docsData);
                 setAcks(acksData);
-                setWeather(weatherData);
-            } else {
-                 setTasks([]);
-                 setDocuments([]);
-                 setAcks([]);
-                 setWeather(null);
             }
-
         } catch (error) {
             addToast("Failed to load dashboard data.", "error");
         } finally {
             setLoading(false);
         }
-    }, [user.id, user.companyId, addToast, selectedProjectId]);
+    }, [user.id, user.companyId, addToast]);
 
 
     useEffect(() => {
         setLoading(true);
         fetchData();
-        getLocation();
-    }, [fetchData, getLocation]);
+    }, [fetchData]);
 
     useEffect(() => {
         let timerId: number;
@@ -444,71 +473,19 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast }) => {
         }
         return () => window.clearInterval(timerId);
     }, [activeTimesheet]);
-
-    const { distance, isInsideGeofence } = useMemo(() => {
-        const project = projects.find(p => p.id === parseInt(selectedProjectId, 10));
-        if (!project || !geoData) return { distance: null, isInsideGeofence: false };
-        const R = 6371e3;
-        const φ1 = project.location.lat * Math.PI / 180;
-        const φ2 = geoData.coords.latitude * Math.PI / 180;
-        const Δφ = (geoData.coords.latitude - project.location.lat) * Math.PI / 180;
-        const Δλ = (geoData.coords.longitude - project.location.lng) * Math.PI / 180;
-        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const d = R * c;
-        return { distance: Math.round(d), isInsideGeofence: d <= project.radius };
-    }, [projects, selectedProjectId, geoData]);
     
     const unacknowledgedDocs = useMemo(() => {
         return documents.filter(doc => doc.category === DocumentCategory.HS && !acks.some(ack => ack.documentId === doc.id));
     }, [documents, acks]);
 
     const openTasks = useMemo(() => {
-        return tasks.filter(t => t.status !== TodoStatus.DONE).sort((a, b) => {
+        const userProjectIds = new Set(projects.map(p => p.id));
+        return tasks.filter(t => t.status !== TodoStatus.DONE && userProjectIds.has(t.projectId)).sort((a, b) => {
             const priorityOrder = { [TodoStatus.IN_PROGRESS]: 1, [TodoStatus.TODO]: 2 };
             return (priorityOrder[a.status] || 3) - (priorityOrder[b.status] || 3);
         });
-    }, [tasks]);
+    }, [tasks, projects]);
 
-    const recentTimesheets = useMemo(() => {
-        return timesheets.slice(0, 4);
-    }, [timesheets]);
-
-    const handleClockIn = async () => {
-        if (!selectedProjectId || !geoData) {
-            addToast('Cannot determine your location or selected project.', 'error');
-            return;
-        }
-        setIsClockingIn(true);
-        try {
-            await api.clockIn(user.id, parseInt(selectedProjectId, 10), {
-                lat: geoData.coords.latitude,
-                lng: geoData.coords.longitude,
-                accuracy: geoData.coords.accuracy,
-            }, WorkType.GENERAL_LABOR);
-            addToast('Successfully clocked in!', 'success');
-            await fetchData();
-        } catch (error) {
-            addToast(String(error), 'error');
-        } finally {
-            setIsClockingIn(false);
-        }
-    };
-
-    const handleClockOut = async () => {
-        if (!activeTimesheet || !geoData) return;
-        setIsClockingOut(true);
-        try {
-            await api.clockOut(activeTimesheet.id, { lat: geoData.coords.latitude, lng: geoData.coords.longitude });
-            addToast('Successfully clocked out!', 'success');
-            await fetchData();
-        } catch (error) {
-            addToast(String(error), 'error');
-        } finally {
-            setIsClockingOut(false);
-        }
-    };
-    
     const handleUpdateTaskStatus = async (taskId: number | string, newStatus: TodoStatus) => {
         try {
             await api.updateTodo(taskId, { status: newStatus }, user.id);
@@ -548,45 +525,7 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast }) => {
         setTasks(tasks.map(t => t.id === selectedTask.id ? updatedTask : t));
     };
 
-    const renderGeofenceStatus = () => {
-        if (geoLoading) return <div className="p-3 rounded-md text-sm bg-slate-100 text-slate-600 text-center animate-pulse">Getting your location...</div>;
-        if (geoError) return (
-            <div className="p-3 rounded-md border bg-red-50 border-red-200 flex items-center gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
-                <div className="flex-grow"><p className="font-semibold text-red-800">Location Error</p><p className="text-xs text-red-700">{geoError.message}</p></div>
-                <Button variant="ghost" size="sm" onClick={getLocation} className="flex-shrink-0">Retry</Button>
-            </div>
-        );
-        if (distance !== null) {
-            const isInside = isInsideGeofence;
-            const config = {
-                bgColor: isInside ? 'bg-green-50' : 'bg-yellow-50',
-                borderColor: isInside ? 'border-green-200' : 'border-yellow-300',
-                textColor: isInside ? 'text-green-800' : 'text-yellow-800',
-                iconColor: isInside ? 'text-green-500' : 'text-yellow-500',
-                title: isInside ? 'Inside Geofence' : 'Outside Geofence',
-                Icon: isInside
-                    ? (props: any) => <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    : (props: any) => <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>,
-            };
-            const formattedDistance = distance < 1000 ? `${distance}m` : `${(distance / 1000).toFixed(1)}km`;
-    
-            return (
-                <div className={`p-4 rounded-lg border ${config.bgColor} ${config.borderColor} flex items-center gap-4`}>
-                    <config.Icon className={`h-10 w-10 flex-shrink-0 ${config.iconColor}`} />
-                    <div className="flex-grow">
-                        <p className={`font-bold text-lg ${config.textColor}`}>{config.title}</p>
-                        <p className="text-sm text-slate-600">You are <span className="font-semibold">{formattedDistance}</span> from the site.</p>
-                    </div>
-                </div>
-            );
-        }
-        return null;
-    };
-
-
     if (loading) return <Card><p>Loading your dashboard...</p></Card>;
-    const activeProject = projects.find(p => p.id.toString() === selectedProjectId);
 
     return (
         <div className="space-y-6">
@@ -598,48 +537,37 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
                 {/* Column 1: Actions */}
                 <div className="space-y-6">
-                    <Card>
-                        {activeTimesheet ? (
+                    {weather && activeProject && (
+                        <Card className="flex items-center gap-4">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-sky-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d={weather.icon} /></svg>
                              <div>
-                                <h3 className="text-lg font-semibold mb-2">Active Shift</h3>
-                                <div className="space-y-4">
-                                    <p className="text-sm text-slate-500">
-                                        Clocked into: <span className="font-medium text-slate-800">{projects.find(p => p.id === activeTimesheet.projectId)?.name}</span>
-                                    </p>
-                                    <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-6">
-                                        <p className="text-sm text-slate-500 uppercase tracking-wider">Current Shift Duration</p>
-                                        <p className="text-5xl font-bold my-1 text-slate-800 tabular-nums">{shiftTimer}</p>
-                                    </div>
-                                    <Button className="w-full" variant="danger" onClick={handleClockOut} isLoading={isClockingOut}>Clock Out</Button>
+                                <p className="text-3xl font-bold">{weather.temperature}°C</p>
+                                <p className="text-slate-500">{weather.condition}</p>
+                                <p className="text-xs text-slate-400">{activeProject.name}</p>
+                             </div>
+                        </Card>
+                    )}
+                    <Card>
+                        <h3 className="text-lg font-semibold mb-2">Time Clock Status</h3>
+                        {activeTimesheet ? (
+                             <div className="space-y-4">
+                                <p className="text-sm text-slate-500">
+                                    Clocked into: <span className="font-medium text-slate-800">{activeProject?.name}</span>
+                                </p>
+                                <div className="text-center bg-slate-50 border border-slate-200 rounded-lg p-6">
+                                    <p className="text-sm text-slate-500 uppercase tracking-wider">Current Shift Duration</p>
+                                    <p className="text-5xl font-bold my-1 text-slate-800 tabular-nums">{shiftTimer}</p>
                                 </div>
                             </div>
                         ) : (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-2">Time Clock</h3>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-end">
-                                        <div className="flex-grow">
-                                            <label htmlFor="project-select" className="text-sm font-medium text-gray-700">Project</label>
-                                            <select id="project-select" value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)} className="w-full p-2 mt-1 border rounded-md">
-                                                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                            </select>
-                                        </div>
-                                        {weather && (
-                                            <div className="flex items-center gap-2 p-2 ml-2 border rounded-md bg-slate-50">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d={weather.icon} />
-                                                </svg>
-                                                <span className="font-semibold text-lg">{weather.temperature}°</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    {renderGeofenceStatus()}
-
-                                    <Button className="w-full" onClick={handleClockIn} disabled={!isInsideGeofence || !!geoError || projects.length === 0} isLoading={isClockingIn}>Clock In</Button>
-                                </div>
-                            </div>
+                             <div className="space-y-4 text-center p-6">
+                                <p className="text-2xl font-semibold text-slate-800">Not Clocked In</p>
+                                <p className="text-slate-500">Go to the Time section to start your shift.</p>
+                             </div>
                         )}
+                        <Button className="w-full mt-4" onClick={() => setActiveView('time')}>
+                            Go to Time Clock
+                        </Button>
                     </Card>
                     <Card>
                         <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
@@ -683,25 +611,6 @@ const OperativeDashboard: React.FC<DashboardProps> = ({ user, addToast }) => {
                                 </div>
                             )) : <p className="text-sm text-slate-500">No outstanding safety documents to review.</p>}
                         </div>
-                    </Card>
-                    <Card>
-                        <h3 className="text-lg font-semibold mb-4">My Recent Timesheets</h3>
-                        <ul className="divide-y divide-slate-200">
-                            {recentTimesheets.length > 0 ? recentTimesheets.map(ts => (
-                                <li key={ts.id} className="py-2.5">
-                                    <div className="flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium text-sm">{new Date(ts.clockIn).toLocaleDateString()}</p>
-                                            <p className="text-xs text-slate-500">{projects.find(p => p.id === ts.projectId)?.name}</p>
-                                        </div>
-                                        <div className="text-right">
-                                             <TimesheetStatusBadge status={ts.status} />
-                                             <p className="text-sm font-semibold mt-1">{ts.clockOut ? `${((new Date(ts.clockOut).getTime() - new Date(ts.clockIn).getTime()) / 3600000).toFixed(2)} hrs` : 'Active'}</p>
-                                        </div>
-                                    </div>
-                                </li>
-                            )) : <p className="text-sm text-slate-500 text-center py-4">No timesheets submitted yet.</p>}
-                        </ul>
                     </Card>
                 </div>
             </div>

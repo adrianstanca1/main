@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Project, Permission } from '../types';
+import { User, Project, Permission, Role } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -21,10 +22,15 @@ export const DailySummaryGenerator: React.FC<DailySummaryGeneratorProps> = ({ us
     const fetchProjects = useCallback(async () => {
         if (!user.companyId) return;
         try {
-            // FIX: Use Permission enum and hasPermission function to correctly determine which projects to fetch.
-            const userProjects = hasPermission(user, Permission.VIEW_ALL_PROJECTS)
-                ? await api.getProjectsByCompany(user.companyId)
-                : await api.getProjectsByManager(user.id);
+            
+            let userProjects: Project[];
+            if (hasPermission(user, Permission.VIEW_ALL_PROJECTS)) {
+                userProjects = await api.getProjectsByCompany(user.companyId);
+            } else if (user.role === Role.PM) { // PMs might not have VIEW_ALL_PROJECTS but manage some
+                userProjects = await api.getProjectsByManager(user.id);
+            } else { // Operatives, etc.
+                userProjects = await api.getProjectsByUser(user.id);
+            }
             setProjects(userProjects);
             if (userProjects.length > 0) {
                 setSelectedProjectId(userProjects[0].id.toString());

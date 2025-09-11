@@ -57,12 +57,12 @@ export const useOfflineSync = (addToast: (message: string, type: 'success' | 'er
 
     const syncActions = useCallback(async () => {
         if (!navigator.onLine || isSyncing) {
-            return { success: true, syncedCount: 0 };
+            return;
         }
 
         let pendingActions = getPendingActions();
         if (pendingActions.length === 0) {
-            return { success: true, syncedCount: 0 };
+            return;
         }
 
         setIsSyncing(true);
@@ -71,20 +71,19 @@ export const useOfflineSync = (addToast: (message: string, type: 'success' | 'er
         const remainingActions: OfflineAction[] = [];
         let successCount = 0;
 
-        // Process actions sequentially
         for (const action of pendingActions) {
             try {
                 switch (action.type) {
                     case 'ADD_TODO':
-                        // tempId is used to identify the task in the UI before it has a real ID
-                        const { tempId, ...todoToAdd } = action.payload;
-                        await api.addTodo(todoToAdd, todoToAdd.creatorId);
+                        await api.addTodo(action.payload, action.payload.creatorId);
                         break;
                     case 'UPDATE_TODO':
-                        // Only sync updates for tasks that have a real (numeric) ID
                         if (typeof action.payload.id === 'number') {
                              await api.updateTodo(action.payload.id, action.payload.updates, action.payload.actorId);
                         }
+                        // Note: If the ID is a string, it means the ADD_TODO for it also failed.
+                        // A more complex system could map temp IDs after the ADD syncs.
+                        // For now, we rely on the ADD action to eventually succeed.
                         break;
                 }
                 successCount++;
@@ -97,21 +96,23 @@ export const useOfflineSync = (addToast: (message: string, type: 'success' | 'er
         savePendingActions(remainingActions);
         setIsSyncing(false);
 
-        if (remainingActions.length === 0) {
-            addToast('All offline changes have been synced!', 'success');
-        } else {
-            addToast(`Successfully synced ${successCount} changes. Some failed and will be retried.`, 'error');
+        if (successCount > 0) {
+            if (remainingActions.length === 0) {
+                addToast('All offline changes have been synced!', 'success');
+            } else {
+                addToast(`Successfully synced ${successCount} changes. Some failed and will be retried.`, 'error');
+            }
+            // Notify the app that data has changed and a refresh is needed.
+            window.dispatchEvent(new CustomEvent('datachanged'));
         }
         
-        return { success: remainingActions.length === 0, syncedCount: successCount };
-
     }, [addToast, isSyncing]);
     
     useEffect(() => {
-        const handleOnline = async () => {
+        const handleOnline = () => {
             setIsOnline(true);
             addToast("You are back online.", 'success');
-            await syncActions();
+            syncActions();
         };
 
         const handleOffline = () => {
@@ -122,8 +123,7 @@ export const useOfflineSync = (addToast: (message: string, type: 'success' | 'er
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
-        // Initial sync check on load if online
-        if(navigator.onLine) {
+        if(navigator.onLine && getPendingActions().length > 0) {
             syncActions();
         }
 

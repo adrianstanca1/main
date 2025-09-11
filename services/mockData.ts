@@ -1,219 +1,224 @@
 import {
-    Company, User, Project, Timesheet, Document, Todo,
-    Site, Role, TimesheetStatus, WorkType, DocumentStatus, DocumentCategory,
-    TodoStatus, TodoPriority, SafetyIncident,
-    IncidentSeverity, IncidentType, IncidentStatus, AuditLog, AuditLogAction,
-    DocumentAcknowledgement, CompanySettings, Client, Quote, QuoteStatus,
-    Invoice, InvoiceStatus, ProjectAssignment, Tool, ToolStatus, Permission, SystemHealth, UsageMetric, FinancialKPIs, PendingApproval, PlatformSettings, Equipment, EquipmentStatus, ProjectPhoto, OperativeReport, DailyLog, Announcement
+  User, Company, Project, Todo, Timesheet, SafetyIncident, Document,
+  Role, Permission, View, TimesheetStatus, TodoStatus, TodoPriority,
+  IncidentStatus, ProjectAssignment, ProjectRole, SubTask, Comment,
+  SystemHealth, UsageMetric, PlatformSettings, PendingApproval, AuditLog, Announcement,
+  Client, Invoice, Quote, Equipment, ResourceAssignment, CompanySettings,
+  ChatMessage, Conversation, DocumentAcknowledgement, OperativeReport, WeatherForecast,
+  ProjectPhoto, DocumentCategory, DocumentStatus, IncidentSeverity, IncidentType,
+  WorkType, InvoiceStatus, QuoteStatus, EquipmentStatus, UserStatus,
+  FinancialKPIs, Tool, ToolStatus, ProjectTemplate
 } from '../types';
 
-const now = new Date();
-const daysAgo = (days: number) => new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-const daysFromNow = (days: number) => new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+export const simulateDelay = (ms = Math.random() * 400 + 100) => new Promise(res => setTimeout(res, ms));
+
+// --- MOCK DATA DEFINITION ---
 
 const companies: Company[] = [
-    { id: 1, name: 'AS Agents Construction', status: 'Active', subscriptionPlan: 'Enterprise', storageUsageGB: 12.5 },
-    { id: 2, name: 'Innovate Builders Inc.', status: 'Active', subscriptionPlan: 'Pro', storageUsageGB: 5.2 },
-    { id: 3, name: 'Suspended Contractors', status: 'Suspended', subscriptionPlan: 'Basic', storageUsageGB: 1.1 },
+  { id: 0, name: 'Platform Administration', status: 'Active', subscriptionPlan: 'Internal', storageUsageGB: 10 },
+  { id: 1, name: 'AS Agents Construction', status: 'Active', subscriptionPlan: 'Enterprise', storageUsageGB: 125.5 },
+  { id: 2, name: 'Modern Builders Co.', status: 'Active', subscriptionPlan: 'Pro', storageUsageGB: 45.2 },
+  { id: 3, name: 'Heritage Renovations', status: 'Suspended', subscriptionPlan: 'Pro', storageUsageGB: 88.1 },
 ];
 
 const users: User[] = [
-    // Platform Super Admin (no companyId)
-    { id: 99, name: 'Super Admin', email: 'super@asagents.platform', role: Role.PRINCIPAL_ADMIN, createdAt: daysAgo(1000) },
-    
-    // AS Agents Users
-    { id: 1, name: 'Alice Admin', email: 'alice@asagents.com', role: Role.ADMIN, companyId: 1, createdAt: daysAgo(365) },
-    { id: 2, name: 'Peter Manager', email: 'peter@asagents.com', role: Role.PM, companyId: 1, createdAt: daysAgo(200) },
-    { id: 3, name: 'Frank Foreman', email: 'frank@asagents.com', role: Role.FOREMAN, companyId: 1, createdAt: daysAgo(150) },
-    { id: 4, name: 'Olivia Operative', email: 'olivia@asagents.com', role: Role.OPERATIVE, companyId: 1, createdAt: daysAgo(90) },
-    { id: 5, name: 'Sam Safety', email: 'sam@asagents.com', role: Role.SAFETY_OFFICER, companyId: 1, createdAt: daysAgo(180) },
+  // Platform Admin
+  { id: 0, name: 'Platform Admin', email: 'pa@platform.com', role: Role.PRINCIPAL_ADMIN, companyId: 0 },
+  
+  // AS Agents Construction
+  { id: 1, name: 'Michael Rodriguez', email: 'michael.r@asagents.com', role: Role.ADMIN, companyId: 1 },
+  { id: 2, name: 'Sarah Johnson', email: 'sarah.j@asagents.com', role: Role.PM, companyId: 1 },
+  { id: 3, name: 'David Chen', email: 'david.c@asagents.com', role: Role.OPERATIVE, companyId: 1 },
+  { id: 4, name: 'James Wilson', email: 'james.w@asagents.com', role: Role.OPERATIVE, companyId: 1 },
+  { id: 5, name: 'Maria Garcia', email: 'maria.g@asagents.com', role: Role.OPERATIVE, companyId: 1 },
+  { id: 6, name: 'Emily White', email: 'emily.w@asagents.com', role: Role.SAFETY_OFFICER, companyId: 1 },
+  { id: 7, name: 'Robert Brown', email: 'robert.b@asagents.com', role: Role.FOREMAN, companyId: 1 },
 
-    // Innovate Builders Users
-    { id: 6, name: 'Ian Innovate', email: 'ian@innovate.com', role: Role.ADMIN, companyId: 2, createdAt: daysAgo(400) },
-    { id: 7, name: 'Mary Manager', email: 'mary@innovate.com', role: Role.PM, companyId: 2, createdAt: daysAgo(300) },
-    
-    // Suspended Co Users
-    { id: 8, name: 'Sue Suspended', email: 'sue@suspended.com', role: Role.ADMIN, companyId: 3, createdAt: daysAgo(500) },
-];
-
-const sites: Site[] = [
-    { id: 1, name: 'Downtown Core Site', location: { lat: 51.5074, lng: -0.1278 }, radius: 150, companyId: 1, createdAt: daysAgo(100) },
-    { id: 2, name: 'Greenwich Peninsula', location: { lat: 51.503, lng: 0.009 }, radius: 200, companyId: 1, createdAt: daysAgo(50) },
-    { id: 3, name: 'Innovation Park', location: { lat: 52.2053, lng: 0.1218 }, radius: 250, companyId: 2, createdAt: daysAgo(200) },
+  // Modern Builders Co.
+  { id: 10, name: 'Laura Smith', email: 'laura.s@modernbuilders.com', role: Role.ADMIN, companyId: 2 },
+  { id: 11, name: 'Ben Carter', email: 'ben.c@modernbuilders.com', role: Role.PM, companyId: 2 },
+  { id: 12, name: 'Olivia Green', email: 'olivia.g@modernbuilders.com', role: Role.OPERATIVE, companyId: 2 },
 ];
 
 const projects: Project[] = [
-    { id: 101, name: 'Project Alpha (High-Rise)', siteId: 1, companyId: 1, managerId: 2, createdAt: daysAgo(90), location: { address: "123 Main Street, London", lat: 51.5074, lng: -0.1278 }, radius: 150, budget: 5000000, actualCost: 4250000, imageUrl: 'https://placehold.co/600x400/5e8b7e/ffffff?text=Alpha' },
-    { id: 102, name: 'Project Bravo (Residential)', siteId: 2, companyId: 1, managerId: 2, createdAt: daysAgo(45), location: { address: "456 River Road, London", lat: 51.503, lng: 0.009 }, radius: 200, budget: 1200000, actualCost: 950000, imageUrl: 'https://placehold.co/600x400/a2d5f2/ffffff?text=Bravo' },
-    { id: 201, name: 'Tech Campus Development', siteId: 3, companyId: 2, managerId: 7, createdAt: daysAgo(180), location: { address: "789 Science Ave, Cambridge", lat: 52.2053, lng: 0.1218 }, radius: 250, budget: 10000000, actualCost: 11500000, imageUrl: 'https://placehold.co/600x400/ff8c42/ffffff?text=Tech' },
-    { id: 301, name: 'Old Warehouse Retrofit', siteId: 1, companyId: 3, managerId: 8, createdAt: daysAgo(450), location: { address: "1 Old industrial way", lat: 51.5, lng: -0.1 }, radius: 100, budget: 800000, actualCost: 750000 },
+  { id: 1, name: 'Downtown Office Complex', companyId: 1, location: { lat: 51.5074, lng: -0.1278, address: '123 Business District, London' }, startDate: new Date('2025-01-15'), budget: 5000000, actualCost: 2300000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/3861458/pexels-photo-3861458.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Commercial Construction', workClassification: 'Contracting' },
+  { id: 2, name: 'Suburban Housing Development', companyId: 1, location: { lat: 51.5560, lng: -0.2796, address: '456 Oak Lane, Wembley' }, startDate: new Date('2024-09-01'), budget: 8000000, actualCost: 750000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/1115804/pexels-photo-1115804.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Residential Construction', workClassification: 'Development' },
+  { id: 3, name: 'City Bridge Refurbishment', companyId: 1, location: { lat: 51.509865, lng: -0.118092, address: 'River Thames Crossing, London' }, startDate: new Date('2024-05-10'), budget: 2500000, actualCost: 2650000, status: 'Completed', imageUrl: 'https://images.pexels.com/photos/1586795/pexels-photo-1586795.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Infrastructure', workClassification: 'Maintenance' },
+  { id: 10, name: 'Mall Expansion', companyId: 2, location: { lat: 53.4808, lng: -2.2426, address: '789 High Street, Manchester' }, startDate: new Date('2025-03-01'), budget: 12000000, actualCost: 450000, status: 'Active', imageUrl: 'https://images.pexels.com/photos/21067/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', projectType: 'Commercial Construction', workClassification: 'Contracting' },
 ];
 
-const projectAssignments: ProjectAssignment[] = [
-    { userId: 2, projectId: 101 }, { userId: 3, projectId: 101 }, { userId: 4, projectId: 101 }, { userId: 5, projectId: 101 },
-    { userId: 2, projectId: 102 }, { userId: 3, projectId: 102 }, { userId: 4, projectId: 102 },
-    { userId: 7, projectId: 201 },
-    { userId: 8, projectId: 301 },
+const subtasks1: SubTask[] = [{id: 1, text: 'Pour foundation', completed: true}, {id: 2, text: 'Erect steel frame', completed: false}];
+const comments1: Comment[] = [{id: 1, creatorId: 2, text: 'Foundation poured ahead of schedule. Good work.', createdAt: new Date('2025-01-20T10:00:00Z')}];
+
+const todos: Todo[] = [
+    { id: 1, projectId: 1, creatorId: 2, text: 'Finalize structural blueprints', status: TodoStatus.DONE, priority: TodoPriority.HIGH, createdAt: new Date('2025-01-10'), completedAt: new Date('2025-01-14'), dueDate: new Date('2025-01-15') },
+    { id: 2, projectId: 1, creatorId: 2, text: 'Site preparation and excavation', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2025-01-15'), subTasks: subtasks1, comments: comments1, dependsOn: 1, dueDate: new Date() },
+    { id: 3, projectId: 1, creatorId: 1, text: 'Order HVAC systems', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2025-01-18'), dependsOn: 2, dueDate: new Date('2025-02-10') },
+    { id: 4, projectId: 1, creatorId: 2, text: 'Install plumbing rough-in', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2025-01-22'), reminderAt: new Date(Date.now() + 86400000), dueDate: new Date(Date.now() + 2 * 86400000) },
+    { id: 5, projectId: 2, creatorId: 2, text: 'Clear and grade lots 1-5', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2024-09-05'), dueDate: new Date(Date.now() - 10 * 86400000) },
+    { id: 6, projectId: 2, creatorId: 2, text: 'Lay foundations for Phase 1', status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, createdAt: new Date('2024-09-10'), dependsOn: 5 },
+    { id: 7, projectId: 3, creatorId: 1, text: 'Final safety inspection', status: TodoStatus.DONE, priority: TodoPriority.HIGH, createdAt: new Date('2024-08-01'), completedAt: new Date('2024-08-15') },
+    { id: 10, projectId: 10, creatorId: 11, text: 'Submit expansion plans to council', status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, createdAt: new Date('2025-03-02'), dueDate: new Date('2025-03-15') },
 ];
 
 const timesheets: Timesheet[] = [
-    { id: 1, userId: 4, projectId: 101, clockIn: daysAgo(1), clockOut: new Date(daysAgo(1).getTime() + 8 * 3600000), status: TimesheetStatus.APPROVED, workType: WorkType.GENERAL_LABOR, breaks: [], comment: "Completed site cleanup.", clockInLocation: { lat: 51.5074, lng: -0.1278 }, clockOutLocation: { lat: 51.5079, lng: -0.1283 } },
-    { id: 2, userId: 4, projectId: 101, clockIn: daysAgo(2), clockOut: new Date(daysAgo(2).getTime() + 8 * 3600000), status: TimesheetStatus.APPROVED, workType: WorkType.FRAMING, breaks: [], comment: "", clockInLocation: { lat: 51.5070, lng: -0.1275 } },
-    { id: 3, userId: 4, projectId: 102, clockIn: daysAgo(3), clockOut: new Date(daysAgo(3).getTime() + 7.5 * 3600000), status: TimesheetStatus.PENDING, workType: WorkType.SITE_PREP, breaks: [], comment: "Initial groundwork.", clockInLocation: { lat: 51.503, lng: 0.009 } },
-    { id: 4, userId: 4, projectId: 102, clockIn: daysAgo(0), clockOut: null, status: TimesheetStatus.PENDING, workType: WorkType.SITE_PREP, breaks: [], comment: "", clockInLocation: { lat: 51.5035, lng: 0.0095 } },
-];
-
-const documents: Document[] = [
-    { id: 1, name: 'Alpha-Safety-Plan-v1.pdf', url: '/mock-doc', projectId: 101, status: DocumentStatus.APPROVED, uploadedAt: daysAgo(80), category: DocumentCategory.HS, version: 1, documentGroupId: 1, creatorId: 2 },
-    { id: 2, name: 'Alpha-Blueprints-v2.pdf', url: '/mock-doc', projectId: 101, status: DocumentStatus.APPROVED, uploadedAt: daysAgo(75), category: DocumentCategory.BLUEPRINT, version: 2, documentGroupId: 2, creatorId: 2, indexedContent: "All structural steel must be Grade 50. Rebar to be #5." },
-    { id: 3, name: 'Alpha-Blueprints-v1.pdf', url: '/mock-doc', projectId: 101, status: DocumentStatus.APPROVED, uploadedAt: daysAgo(85), category: DocumentCategory.BLUEPRINT, version: 1, documentGroupId: 2, creatorId: 2 },
-    { id: 4, name: 'Bravo-Site-Survey.pdf', url: '/mock-doc', projectId: 102, status: DocumentStatus.APPROVED, uploadedAt: daysAgo(40), category: DocumentCategory.GENERAL, version: 1, documentGroupId: 3, creatorId: 2 },
-];
-
-const todos: Todo[] = [
-    { id: 1, text: 'Finalize foundation pouring schedule', status: TodoStatus.IN_PROGRESS, projectId: 101, priority: TodoPriority.HIGH, dueDate: daysFromNow(2), createdAt: daysAgo(5), creatorId: 2, comments: [{ id: 101, text: "Waiting on confirmation from supplier.", creatorId: 3, createdAt: daysAgo(1) }, { id: 102, text: "Supplier confirmed for Tuesday.", creatorId: 2, createdAt: new Date() }] },
-    { id: 2, text: 'Order drywall for floors 1-5', status: TodoStatus.TODO, projectId: 101, priority: TodoPriority.MEDIUM, dueDate: daysFromNow(7), createdAt: daysAgo(2), creatorId: 2, subTasks: [{id: 1, text: 'Get 3 quotes', completed: true}, {id: 2, text: 'Confirm delivery date', completed: false}] },
-    { id: 3, text: 'Install safety netting on perimeter', status: TodoStatus.DONE, projectId: 101, priority: TodoPriority.HIGH, createdAt: daysAgo(10), creatorId: 3, isSafetyTask: true },
-    { id: 4, text: 'Clear and grade the site', status: TodoStatus.TODO, projectId: 102, priority: TodoPriority.HIGH, dueDate: new Date(), createdAt: daysAgo(1), creatorId: 3, subTasks: [{id: 3, text: 'Mark utility lines', completed: true}, {id: 4, text: 'Remove topsoil', completed: false}], comments: [{id: 103, text: 'Make sure to check for irrigation pipes before digging.', creatorId: 2, createdAt: daysAgo(1)}] },
-];
-
-const equipment: Equipment[] = [
-    { id: 1, name: 'Excavator CAT 320', type: 'Heavy', status: EquipmentStatus.AVAILABLE, companyId: 1 },
-    { id: 2, name: 'Skid Steer Loader', type: 'Heavy', status: EquipmentStatus.IN_USE, companyId: 1, projectId: 101 },
-    { id: 3, name: 'Concrete Mixer', type: 'Light', status: EquipmentStatus.MAINTENANCE, companyId: 1 },
-    { id: 4, name: 'Ford F-150', type: 'Vehicle', status: EquipmentStatus.AVAILABLE, companyId: 1 },
-    { id: 5, name: 'Scissor Lift', type: 'Light', status: EquipmentStatus.AVAILABLE, companyId: 2 },
+    { id: 1, userId: 3, projectId: 1, clockIn: new Date('2025-01-20T08:00:00Z'), clockOut: new Date('2025-01-20T17:00:00Z'), clockInLocation: { lat: 51.5074, lng: -0.1278 }, clockOutLocation: { lat: 51.5074, lng: -0.1278 }, workType: WorkType.GENERAL_LABOR, status: TimesheetStatus.APPROVED, breaks: [{startTime: new Date('2025-01-20T12:00:00Z'), endTime: new Date('2025-01-20T12:30:00Z')}] },
+    { id: 2, userId: 4, projectId: 1, clockIn: new Date('2025-01-20T08:05:00Z'), clockOut: new Date('2025-01-20T17:02:00Z'), clockInLocation: { lat: 51.5074, lng: -0.1278 }, clockOutLocation: { lat: 51.5074, lng: -0.1278 }, workType: WorkType.EQUIPMENT_OPERATION, status: TimesheetStatus.PENDING, breaks: [{startTime: new Date('2025-01-20T12:00:00Z'), endTime: new Date('2025-01-20T12:30:00Z')}], trustScore: 0.75, trustReasons: { geofence: 'Clocked in outside of project geofence' } },
+    { id: 3, userId: 5, projectId: 2, clockIn: new Date(Date.now() - 4 * 3600 * 1000), clockOut: null, clockInLocation: { lat: 51.5560, lng: -0.2796 }, clockOutLocation: null, workType: WorkType.GENERAL_LABOR, status: TimesheetStatus.PENDING, breaks: [] },
+    { id: 4, userId: 12, projectId: 10, clockIn: new Date('2025-03-05T08:30:00Z'), clockOut: new Date('2025-03-05T16:30:00Z'), clockInLocation: { lat: 53.4808, lng: -2.2426 }, clockOutLocation: { lat: 53.4808, lng: -2.2426 }, workType: WorkType.GENERAL_LABOR, status: TimesheetStatus.REJECTED, comment: 'Incorrect project selected.', breaks: [] },
 ];
 
 const safetyIncidents: SafetyIncident[] = [
-    { id: 1, projectId: 101, reporterId: 4, timestamp: daysAgo(15), severity: IncidentSeverity.LOW, type: IncidentType.NEAR_MISS, description: 'A pallet of bricks was left in a walkway.', locationOnSite: 'Level 3, East Wing', status: IncidentStatus.RESOLVED, correctiveActionTaken: 'Pallet moved and area cleared.' },
-    { id: 2, projectId: 201, reporterId: 7, timestamp: daysAgo(5), severity: IncidentSeverity.MEDIUM, type: IncidentType.HAZARD_OBSERVATION, description: 'Exposed wiring found near the west entrance.', locationOnSite: 'Ground Floor, West Entrance', status: IncidentStatus.UNDER_REVIEW },
-    { id: 3, projectId: 101, reporterId: 3, timestamp: daysAgo(2), severity: IncidentSeverity.MEDIUM, type: IncidentType.HAZARD_OBSERVATION, description: 'Incorrect scaffolding clamps used on level 5.', locationOnSite: 'Level 5, South Face', status: IncidentStatus.REPORTED },
+    { id: 1, projectId: 1, reporterId: 3, timestamp: new Date('2025-01-19T14:30:00Z'), type: IncidentType.NEAR_MISS, severity: IncidentSeverity.LOW, description: 'A small hand tool was dropped from scaffolding, but landed in a cordoned-off area. No injuries.', locationOnSite: 'Scaffolding, West face', status: IncidentStatus.RESOLVED },
+    { id: 2, projectId: 1, reporterId: 6, timestamp: new Date('2025-01-22T10:00:00Z'), type: IncidentType.HAZARD_OBSERVATION, severity: IncidentSeverity.MEDIUM, description: 'Water pooling near electrical panel on Level 2.', locationOnSite: 'Level 2, near main electrical room', status: IncidentStatus.UNDER_REVIEW },
+    { id: 3, projectId: 2, reporterId: 5, timestamp: new Date('2024-09-10T11:00:00Z'), type: IncidentType.INJURY, severity: IncidentSeverity.MEDIUM, description: 'Minor cut to hand while handling rebar. First aid administered on site.', locationOnSite: 'Lot 3 Foundation Area', status: IncidentStatus.REPORTED },
 ];
 
-const companySettings: CompanySettings[] = [
-    { id: 1, companyId: 1, timesheetRetentionDays: 365, theme: 'light', notificationPreferences: { taskDueDate: true, newDocumentAssigned: true, timesheetFlagged: true }, country: 'United Kingdom', currency: 'GBP' },
-    { id: 2, companyId: 2, timesheetRetentionDays: 730, theme: 'dark', notificationPreferences: { taskDueDate: true, newDocumentAssigned: false, timesheetFlagged: true }, country: 'United States', currency: 'USD' },
+const documents: Document[] = [
+    { id: 1, name: 'Foundation Blueprint Rev. 2.pdf', url: '/mock-assets/docs/Foundation Blueprint.pdf', projectId: 1, category: DocumentCategory.BLUEPRINTS, status: DocumentStatus.APPROVED, uploadedAt: new Date('2025-01-05T11:00:00Z'), creatorId: 2, version: 2 },
+    { id: 2, name: 'Site Safety Plan.pdf', url: '/mock-assets/docs/Site Safety Plan.pdf', projectId: 1, category: DocumentCategory.HS, status: DocumentStatus.APPROVED, uploadedAt: new Date('2025-01-02T15:00:00Z'), creatorId: 6, version: 1 },
+    { id: 3, name: 'Main Contract.pdf', url: '/mock-assets/docs/Main Contract.pdf', projectId: 1, category: DocumentCategory.CONTRACT, status: DocumentStatus.APPROVED, uploadedAt: new Date('2024-12-15T09:00:00Z'), creatorId: 1, version: 1 },
+    { id: 4, name: 'Lot Plan - Phase 1.dwg', url: '/mock-assets/docs/Lot Plan.dwg', projectId: 2, category: DocumentCategory.BLUEPRINTS, status: DocumentStatus.APPROVED, uploadedAt: new Date('2024-09-02T13:00:00Z'), creatorId: 2, version: 1 },
 ];
 
-const clients: Client[] = [
-    {id: 1, name: "Global Property Group", companyId: 1, contactEmail: "contact@gpg.com", contactPhone: "555-1234", address: "1 Financial Square", createdAt: daysAgo(400) },
-    {id: 2, name: "City Developments", companyId: 1, contactEmail: "info@citydev.com", contactPhone: "555-5678", address: "200 Urban Drive", createdAt: daysAgo(250) },
+const documentAcks: DocumentAcknowledgement[] = [
+    { id: 1, documentId: 2, userId: 3, acknowledgedAt: new Date('2025-01-20T08:10:00Z') },
 ];
 
-const invoices: Invoice[] = [
-    {id: 1, projectId: 101, clientId: 1, status: InvoiceStatus.PAID, items: [], subtotal: 50000, tax: 10000, total: 60000, amountPaid: 60000, amountDue: 0, issuedAt: daysAgo(30), dueAt: daysAgo(0)},
-    {id: 2, projectId: 101, clientId: 1, status: InvoiceStatus.SENT, items: [], subtotal: 75000, tax: 15000, total: 90000, amountPaid: 0, amountDue: 90000, issuedAt: daysAgo(5), dueAt: daysFromNow(25)},
+const projectAssignments: ProjectAssignment[] = [
+    { userId: 2, projectId: 1, projectRole: ProjectRole.PROJECT_MANAGER },
+    { userId: 7, projectId: 1, projectRole: ProjectRole.SITE_SUPERVISOR },
+    { userId: 3, projectId: 1, projectRole: ProjectRole.WORKER },
+    { userId: 4, projectId: 1, projectRole: ProjectRole.WORKER },
+    { userId: 5, projectId: 1, projectRole: ProjectRole.WORKER },
+    { userId: 6, projectId: 1, projectRole: ProjectRole.LEAD_ENGINEER },
+
+    { userId: 2, projectId: 2, projectRole: ProjectRole.PROJECT_MANAGER },
+    { userId: 7, projectId: 2, projectRole: ProjectRole.SITE_SUPERVISOR },
+    { userId: 5, projectId: 2, projectRole: ProjectRole.WORKER },
+    
+    { userId: 2, projectId: 3, projectRole: ProjectRole.PROJECT_MANAGER },
+
+    { userId: 11, projectId: 10, projectRole: ProjectRole.PROJECT_MANAGER },
+    { userId: 12, projectId: 10, projectRole: ProjectRole.WORKER },
 ];
 
-const quotes: Quote[] = [
-    {id: 1, projectId: 102, clientId: 2, status: QuoteStatus.ACCEPTED, items: [], total: 1200000, createdAt: daysAgo(50), validUntil: daysAgo(20)}
-];
+const systemHealth: SystemHealth = { uptime: '99.99%', apiHealth: { status: 'Operational', errorRate: 0.2, throughput: 1200 }, databaseHealth: { status: 'Operational', latency: 45 }, storageHealth: { status: 'Operational', usedGB: 125.5, totalGB: 1000 } };
+const usageMetrics: UsageMetric[] = [{ companyId: 1, apiCalls: 15000, storageUsed: 125.5, activeUsers: 6 }, { companyId: 2, apiCalls: 8000, storageUsed: 45.2, activeUsers: 3 }];
+const platformSettings: PlatformSettings = { mfaRequired: true, logRetentionDays: 90, newTenantOnboardingWorkflow: 'manual', defaultStorageQuotaGB: 50 };
+const pendingApprovals: PendingApproval[] = [{ id: 1, type: 'New User', description: 'John Doe from New Client Inc.', companyId: 2 }];
 
 const auditLogs: AuditLog[] = [
-    { id: 1, projectId: 101, actorId: 2, action: AuditLogAction.TODO_ADDED, target: { type: 'task', id: 2, name: 'Order drywall for floors 1-5' }, timestamp: daysAgo(2) },
-    { id: 2, projectId: 101, actorId: 3, action: AuditLogAction.SAFETY_INCIDENT_REPORTED, target: { type: 'incident', id: 3, name: 'Incorrect scaffolding clamps' }, timestamp: daysAgo(2) },
-    { id: 3, projectId: 102, actorId: 2, action: AuditLogAction.TIMESHEET_APPROVED, target: { type: 'timesheet', id: 1, name: 'Timesheet for Olivia Operative' }, timestamp: daysAgo(1) },
-    { id: 4, projectId: 101, actorId: 4, action: AuditLogAction.DOCUMENT_ACKNOWLEDGED, target: { type: 'document', id: 1, name: 'Alpha-Safety-Plan-v1.pdf' }, timestamp: daysAgo(1) },
-    { id: 5, projectId: 102, actorId: 1, action: AuditLogAction.PROJECT_PHOTO_ADDED, target: { type: 'photo', id: 4, name: 'Initial site clearing and grading.' }, timestamp: daysAgo(40) },
-    { id: 6, actorId: 99, action: AuditLogAction.TENANT_SUSPENDED, target: { type: 'company', id: 3, name: 'Suspended Contractors' }, timestamp: daysAgo(1) },
-];
-
-const tools: Tool[] = [
-  { id: 'advisor', name: 'Business Advisor', description: 'Conversational AI for strategic business and operational advice.', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', status: ToolStatus.ACTIVE, tags: ['AI', 'Finance'], usage: 65, requiredPermission: Permission.ACCESS_FINANCIAL_TOOLS },
-  { id: 'project-estimator', name: 'AI Project Estimator', description: 'Generate accurate project cost estimates using AI.', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4', status: ToolStatus.NEW, tags: ['AI', 'Project', 'Finance'], usage: 92, requiredPermission: Permission.ACCESS_FINANCIAL_TOOLS },
-  { id: 'schedule-optimizer', name: 'Resource Scheduler', description: 'Visualize and manage project schedules and resource allocation.', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', status: ToolStatus.ACTIVE, tags: ['Project'], usage: 78, requiredPermission: Permission.ACCESS_PROJECT_TOOLS },
-  { id: 'safety-analysis', name: 'AI Safety Analysis', description: 'Analyze incident reports to find trends and get recommendations.', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', status: ToolStatus.ACTIVE, tags: ['AI', 'Safety'], usage: 40, requiredPermission: Permission.ACCESS_SAFETY_TOOLS },
-  { id: 'funding-bot', name: 'FundingBot', description: 'Discover grants and funding opportunities.', icon: 'M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3', status: ToolStatus.ACTIVE, tags: ['AI', 'Finance'], usage: 45, requiredPermission: Permission.ACCESS_FINANCIAL_TOOLS },
-  { id: 'risk-bot', name: 'RiskBot', description: 'Analyze text for compliance and financial risks.', icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', status: ToolStatus.ACTIVE, tags: ['AI', 'Finance', 'Safety'], usage: 33, requiredPermission: Permission.ACCESS_SAFETY_TOOLS },
-  { id: 'bid-generator', name: 'Bid Package Generator', description: 'Assemble tender cover letter, checklist, and summaries.', icon: 'M4 5a2 2 0 012-2h7a2 2 0 012 2v12a2 2 0 01-2-2H6a2 2 0 01-2-2V5zm3 1a1 1 0 000 2h6a1 1 0 100-2H7zm6 4a1 1 0 011 1v3a1 1 0 11-2 0v-3a1 1 0 011-1zm-1-4a1 1 0 10-2 0v1h2V6z', status: ToolStatus.NEW, tags: ['AI', 'Project'], usage: 12, requiredPermission: Permission.ACCESS_FINANCIAL_TOOLS },
-  { id: 'procurement', name: 'Procurement Manager', description: 'Track materials, requests, and supplier notes.', icon: 'M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z', status: ToolStatus.DEV_PHASE, tags: ['Project', 'Finance'], usage: 0, requiredPermission: Permission.ACCESS_FINANCIAL_TOOLS },
-  { id: 'daily-summary', name: 'AI Daily Summary', description: 'Generate a daily project summary from tasks, incidents, and reports.', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', status: ToolStatus.NEW, tags: ['AI', 'Project'], usage: 0, requiredPermission: Permission.ACCESS_PROJECT_TOOLS },
-];
-
-const systemHealth: SystemHealth = {
-    uptime: '99.99%',
-    apiHealth: { throughput: 1250, errorRate: 0.1 },
-    databaseHealth: { latency: 45, connections: 88 },
-    storageHealth: { totalUsageGB: 18.8, status: 'Operational' }
-};
-
-const usageMetrics: UsageMetric[] = [
-    { companyId: 1, period: '2023-10', activeUsers: 5, apiCalls: 15234, storageUsedGB: 12.5, featureAdoption: { tasks: 90, documents: 75, finances: 60 } },
-    { companyId: 2, period: '2023-10', activeUsers: 2, apiCalls: 8102, storageUsedGB: 5.2, featureAdoption: { tasks: 85, documents: 60, finances: 40 } },
-    { companyId: 3, period: '2023-10', activeUsers: 1, apiCalls: 1250, storageUsedGB: 1.1, featureAdoption: { tasks: 50, documents: 20, finances: 10 } },
-];
-
-const financialKPIs: FinancialKPIs[] = [
-    { companyId: 1, profitability: 12.5, utilizationRate: 88, projectMargin: 15.2, cashFlow: 125000 },
-    { companyId: 2, profitability: 9.8, utilizationRate: 92, projectMargin: 12.1, cashFlow: 85000 },
-];
-
-const pendingApprovals: PendingApproval[] = [
-    { id: 1, type: 'Timesheet', description: "Olivia Operative - 40 hours", submittedBy: "Olivia Operative", projectId: 101, companyId: 1, date: daysAgo(1) },
-    { id: 2, type: 'Invoice', description: "INV-0003 for Global Property", submittedBy: "Peter Manager", projectId: 101, companyId: 1, date: daysAgo(2) },
-    { id: 3, type: 'Tenant Signup', description: "Innovate Builders Inc.", submittedBy: "System", companyId: 2, date: daysAgo(400) },
-];
-
-const platformSettings: PlatformSettings = {
-    defaultDbType: 'PostgreSQL',
-    defaultStorageQuotaGB: 50,
-    mfaRequired: true,
-    logRetentionDays: 365,
-    newTenantOnboardingWorkflow: 'manual',
-};
-
-const projectPhotos: ProjectPhoto[] = [
-    { id: 1, projectId: 101, url: 'https://placehold.co/800x600/5e8b7e/ffffff?text=Foundation+Pour', caption: 'Foundation pouring complete for the west wing.', uploaderId: 2, createdAt: daysAgo(20) },
-    { id: 2, projectId: 101, url: 'https://placehold.co/800x600/5e8b7e/ffffff?text=Steel+Frame', caption: 'Steel framing reaching the 5th floor.', uploaderId: 3, createdAt: daysAgo(10) },
-    { id: 3, projectId: 101, url: 'https://placehold.co/800x600/5e8b7e/ffffff?text=Curtain+Wall', caption: 'Curtain wall installation has begun.', uploaderId: 2, createdAt: daysAgo(2) },
-    { id: 4, projectId: 102, url: 'https://placehold.co/800x600/a2d5f2/ffffff?text=Site+Clearing', caption: 'Initial site clearing and grading.', uploaderId: 3, createdAt: daysAgo(40) },
-];
-
-const operativeReports: OperativeReport[] = [
-    { id: 1, userId: 4, projectId: 101, date: daysAgo(5), notes: "Completed interior fittings on floor 2. All clear.", photoUrl: "https://placehold.co/800x600/6a6a6a/ffffff?text=Floor+2+Fittings", status: 'Approved' },
-    { id: 2, userId: 4, projectId: 101, date: daysAgo(3), notes: "Minor delay due to weather, but back on track. Inspected safety harnesses.", photoUrl: "https://placehold.co/800x600/6a6a6a/ffffff?text=Harness+Check", status: 'Pending' },
-    { id: 3, userId: 4, projectId: 102, date: daysAgo(15), notes: "Plumbing rough-in for unit 1A is complete.", photoUrl: "https://placehold.co/800x600/7a7a7a/ffffff?text=Plumbing+1A", status: 'Approved' },
-];
-
-const dailyLogs: DailyLog[] = [
-    { id: 1, projectId: 101, authorId: 4, date: daysAgo(1), weather: 'Sunny', temperature: 22, notes: 'Productive day. All teams on schedule. No issues reported.'},
-    { id: 2, projectId: 102, authorId: 4, date: daysAgo(1), weather: 'Cloudy', temperature: 18, notes: 'Site prep is nearly complete. Waiting on final survey markers.'},
+    { id: 1, actorId: 2, action: 'TASK_CREATED', timestamp: new Date('2025-01-22T09:00:00Z'), target: { type: 'Task', id: 4, name: 'Install plumbing rough-in' }, projectId: 1 },
+    { id: 2, actorId: 3, action: 'TIMESHEET_APPROVED', timestamp: new Date('2025-01-21T10:00:00Z'), target: { type: 'User', id: 3, name: 'David Chen' }, projectId: 1 },
+    { id: 3, actorId: 6, action: 'SAFETY_INCIDENT_REPORTED', timestamp: new Date('2025-01-22T10:05:00Z'), target: { type: 'Project', id: 1, name: 'Downtown Office Complex' }, projectId: 1 },
 ];
 
 const announcements: Announcement[] = [
-    { id: 1, senderId: 99, scope: 'platform', title: 'Platform Maintenance Alert', content: 'The platform will be undergoing scheduled maintenance this Saturday from 2 AM to 4 AM GMT. Please expect intermittent downtime.', createdAt: daysAgo(1) },
-    { id: 2, senderId: 1, scope: 'company', companyId: 1, title: 'Holiday Office Closure', content: 'A reminder that all AS Agents sites and offices will be closed for the upcoming bank holiday on Monday.', createdAt: daysAgo(3) },
+    { id: 1, senderId: 0, scope: 'platform', title: 'Scheduled Maintenance', content: 'The platform will undergo scheduled maintenance this Sunday from 2 AM to 4 AM GMT.', createdAt: new Date('2025-01-20T12:00:00Z') },
+    { id: 2, senderId: 1, scope: 'company', companyId: 1, title: 'Annual Safety Meeting', content: 'The annual all-hands safety meeting will be held next Friday in the main conference room.', createdAt: new Date('2025-01-21T09:00:00Z') },
+];
+
+const chatMessages: ChatMessage[] = [];
+const conversations: Conversation[] = [
+    { id: 1, participants: [1, 2], messages: [{ id: 1, conversationId: 1, senderId: 2, content: 'Hey Michael, can you approve the latest timesheets?', timestamp: new Date(Date.now() - 3600000), isRead: false}], lastMessage: { id: 1, conversationId: 1, senderId: 2, content: 'Hey Michael, can you approve the latest timesheets?', timestamp: new Date(Date.now() - 3600000), isRead: false} },
+];
+
+const clients: Client[] = [{ id: 1, companyId: 1, name: 'Innovate Corp', contactEmail: 'contact@innovate.com', contactPhone: '555-1234', createdAt: new Date('2024-11-01') }];
+const invoices: Invoice[] = [{ id: 1, companyId: 1, clientId: 1, projectId: 3, status: InvoiceStatus.PAID, total: 150000, amountDue: 0, issuedAt: new Date('2024-08-20'), dueAt: new Date('2024-09-20'), items: [] }];
+const quotes: Quote[] = [{ id: 1, companyId: 1, clientId: 1, projectId: 1, status: QuoteStatus.ACCEPTED, total: 4800000, validUntil: new Date('2024-12-31') }];
+const equipment: Equipment[] = [{ id: 1, name: 'Excavator EX-200', type: 'Heavy Machinery', status: EquipmentStatus.AVAILABLE, companyId: 1 }, { id: 2, name: 'Crane C-150', type: 'Heavy Machinery', status: EquipmentStatus.IN_USE, companyId: 1, projectId: 1 }];
+const resourceAssignments: ResourceAssignment[] = [];
+const operativeReports: OperativeReport[] = [{id: 1, projectId: 1, userId: 3, notes: 'Framing on floor 2 complete.', timestamp: new Date('2025-01-22T16:00:00Z'), photoUrl: 'https://images.pexels.com/photos/1216589/pexels-photo-1216589.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2'}];
+const weatherForecasts: WeatherForecast[] = [];
+const projectPhotos: ProjectPhoto[] = [{id: 1, projectId: 1, uploaderId: 2, url: 'https://images.pexels.com/photos/585419/pexels-photo-585419.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2', caption: 'Site progress as of Jan 22.', timestamp: new Date('2025-01-22T12:00:00Z')}];
+
+const companySettings: CompanySettings[] = [
+    { companyId: 1, theme: 'light', notificationPreferences: { projectUpdates: true, timeReminders: true, photoRequirements: false }, locationPreferences: { gpsAccuracy: 'standard', backgroundTracking: true, locationHistoryDays: 30 } },
+    { companyId: 2, theme: 'dark', notificationPreferences: { projectUpdates: true, timeReminders: false, photoRequirements: true }, locationPreferences: { gpsAccuracy: 'high', backgroundTracking: true, locationHistoryDays: 60 } },
+];
+const financialKPIs: FinancialKPIs[] = [
+    {
+        companyId: 1,
+        currency: 'GBP',
+        profitability: 22.5,
+        profitabilityChange: 1.2,
+        projectMargin: 18.3,
+        projectMarginChange: -0.5,
+        cashFlow: 120450,
+        cashFlowChange: 5.8,
+    },
+    {
+        companyId: 2,
+        currency: 'USD',
+        profitability: 19.8,
+        profitabilityChange: -2.1,
+        projectMargin: 15.1,
+        projectMarginChange: 0.2,
+        cashFlow: 85200,
+        cashFlowChange: -1.5,
+    }
+];
+
+const tools: Tool[] = [
+  // AI Powered
+  { id: 'advisor', name: 'AI Business Advisor', description: 'Conversational assistant for business strategy and operations.', status: ToolStatus.ACTIVE, icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z', tags: ['AI', 'Strategy'] },
+  { id: 'site-inspector', name: 'AI Site Inspector', description: 'Analyze site photos for safety hazards, progress, and quality control.', status: ToolStatus.ACTIVE, icon: 'M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z', tags: ['AI', 'Safety', 'Project'] },
+  { id: 'daily-summary', name: 'Daily Summary Generator', description: 'Automatically generate daily progress reports from project data.', status: ToolStatus.NEW, icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', tags: ['AI', 'Project', 'Reporting'] },
+  
+  // Financial Tools
+  { id: 'project-estimator', name: 'AI Cost Estimator', description: 'Get high-level cost estimates for potential projects.', status: ToolStatus.ACTIVE, icon: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z', tags: ['AI', 'Finance'] },
+  { id: 'funding-bot', name: 'FundingBot', description: 'Discover grants and funding opportunities for your projects.', status: ToolStatus.ACTIVE, icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01', tags: ['AI', 'Finance'] },
+  { id: 'risk-bot', name: 'RiskBot', description: 'Analyze contracts and documents for financial and compliance risks.', status: ToolStatus.ACTIVE, icon: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z', tags: ['AI', 'Finance'] },
+  { id: 'bid-generator', name: 'Bid Package Generator', description: 'Assemble tender cover letters and summaries automatically.', status: ToolStatus.DEV_PHASE, icon: 'M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z', tags: ['AI', 'Finance'] },
+
+  // Project Management
+  { id: 'schedule-optimizer', name: 'Schedule Optimizer', description: 'AI-powered resource and task scheduling for maximum efficiency.', status: ToolStatus.COMING_SOON, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', tags: ['AI', 'Project'] },
+  { id: 'safety-analysis', name: 'Safety Analysis', description: 'Analyze incident reports to identify trends and recommend actions.', status: ToolStatus.ACTIVE, icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', tags: ['AI', 'Safety', 'Project'] },
+];
+
+const projectTemplates: ProjectTemplate[] = [
+    {
+        id: 1,
+        companyId: 1,
+        name: 'Standard Residential Build',
+        description: 'A template for a typical single-family home construction project from foundation to finish.',
+        templateTasks: [
+            { id: 'temp-1', text: 'Site Survey & Layout', priority: TodoPriority.HIGH },
+            { id: 'temp-2', text: 'Excavation & Foundation', priority: TodoPriority.HIGH },
+            { id: 'temp-3', text: 'Framing & Roofing', priority: TodoPriority.HIGH },
+            { id: 'temp-4', text: 'Plumbing & Electrical Rough-in', priority: TodoPriority.MEDIUM },
+            { id: 'temp-5', text: 'Insulation & Drywall', priority: TodoPriority.MEDIUM },
+            { id: 'temp-6', text: 'Interior & Exterior Finishes', priority: TodoPriority.LOW },
+            { id: 'temp-7', text: 'Final Landscaping', priority: TodoPriority.LOW },
+        ],
+        documentCategories: [DocumentCategory.BLUEPRINTS, DocumentCategory.CONTRACT, DocumentCategory.HS],
+        safetyProtocols: ['Daily toolbox talks required', 'Hard hats mandatory at all times', 'Fall protection required above 6 feet'],
+    },
+    {
+        id: 2,
+        companyId: 1,
+        name: 'Commercial Office Fit-out',
+        description: 'A template for interior fit-out projects in commercial office spaces.',
+        templateTasks: [
+            { id: 'temp-8', text: 'Demolition of existing space', priority: TodoPriority.MEDIUM },
+            { id: 'temp-9', text: 'HVAC & Electrical Installation', priority: TodoPriority.HIGH },
+            { id: 'temp-10', text: 'Partitioning & Ceilings', priority: TodoPriority.HIGH },
+            { id: 'temp-11', text: 'Flooring & Painting', priority: TodoPriority.MEDIUM },
+            { id: 'temp-12', text: 'Furniture & Fixtures Installation', priority: TodoPriority.LOW },
+        ],
+        documentCategories: [DocumentCategory.BLUEPRINTS, DocumentCategory.CONTRACT],
+        safetyProtocols: ['Hot work permit required for welding/cutting', 'Work area must be cordoned off from public'],
+    }
 ];
 
 
+// --- EXPORT ---
+
 export const MOCK_DATA = {
-    companies,
-    users,
-    sites,
-    projects,
-    projectAssignments,
-    timesheets,
-    documents,
-    documentAcks: [] as DocumentAcknowledgement[],
-    todos,
-    auditLogs,
-    safetyIncidents,
-    companySettings,
-    dailyLogs,
-    equipment,
-    resourceAssignments: [],
-    rfis: [],
-    operativeReports,
-    clients,
-    quotes,
-    invoices,
-    tools,
-    systemHealth,
-    usageMetrics,
-    financialKPIs,
-    pendingApprovals,
-    platformSettings,
-    projectPhotos,
-    announcements,
+    companies, users, projects, todos, timesheets, safetyIncidents, documents,
+    projectAssignments, systemHealth, usageMetrics, platformSettings, pendingApprovals,
+    auditLogs, announcements, conversations, chatMessages, clients, invoices, quotes,
+    equipment, resourceAssignments, companySettings, documentAcks, operativeReports,
+    weatherForecasts, projectPhotos, financialKPIs, tools, projectTemplates
 };

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Role, Company, CompanySettings, NotificationPreferences } from '../types';
+import { User, Role, Company, CompanySettings, LocationPreferences, NotificationPreferences } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { ToggleSwitch } from './ui/ToggleSwitch';
+import { Tag } from './ui/Tag';
 
 interface SettingsViewProps {
   user: User;
@@ -12,31 +13,60 @@ interface SettingsViewProps {
   setTheme: (theme: 'light' | 'dark') => void;
 }
 
-type SettingsSection = 'profile' | 'company' | 'notifications' | 'appearance';
+const Avatar: React.FC<{ name: string; className?: string }> = ({ name, className = '' }) => {
+    const getInitials = (name: string) => {
+        const parts = name.split(' ');
+        if (parts.length > 1) {
+            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+        }
+        return name.substring(0, 2).toUpperCase();
+    };
+    return (
+        <div className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
+            {getInitials(name)}
+        </div>
+    );
+};
+
+const SettingsRow: React.FC<{
+    icon: React.ReactNode;
+    label: string;
+    description?: string;
+    action: 'arrow' | React.ReactNode;
+    onClick?: () => void;
+}> = ({ icon, label, description, action, onClick }) => (
+    <div
+        onClick={onClick}
+        className={`flex items-center p-3 rounded-lg ${onClick ? 'cursor-pointer hover:bg-slate-50' : ''}`}
+    >
+        <div className="mr-4 text-slate-500">{icon}</div>
+        <div className="flex-grow">
+            <p className="font-medium">{label}</p>
+            {description && <p className="text-xs text-slate-400">{description}</p>}
+        </div>
+        <div>
+            {action === 'arrow' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+            ) : action}
+        </div>
+    </div>
+);
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ user, addToast, theme, setTheme }) => {
-    const [activeSection, setActiveSection] = useState<SettingsSection>('profile');
-    const [company, setCompany] = useState<Company | null>(null);
     const [settings, setSettings] = useState<CompanySettings | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-
-    const isDirty = settings?.theme !== theme; // Example dirty check
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             if (!user.companyId) {
-                // If user has no company, they might be a Principal Admin or have a different setup.
-                // For now, we just stop loading and show a limited view.
                 setIsLoading(false);
                 return;
             }
-            const [companyData, settingsData] = await Promise.all([
-                api.getCompanies().then(companies => companies.find(c => c.id === user.companyId) || null),
-                api.getCompanySettings(user.companyId)
-            ]);
-            setCompany(companyData);
-            setSettings(settingsData || null);
+            const settingsData = await api.getCompanySettings(user.companyId);
+            setSettings(settingsData);
         } catch (error) {
             addToast("Failed to load settings.", "error");
         } finally {
@@ -48,185 +78,116 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, addToast, them
         fetchData();
     }, [fetchData]);
 
+    const handleSettingsUpdate = async (updates: Partial<CompanySettings>) => {
+        if (!user.companyId || !settings) return;
+        
+        // Optimistic update
+        const originalSettings = settings;
+        const newSettings = { ...settings, ...updates };
+        if(updates.notificationPreferences) {
+            newSettings.notificationPreferences = { ...settings.notificationPreferences, ...updates.notificationPreferences };
+        }
+        if(updates.locationPreferences) {
+            newSettings.locationPreferences = { ...settings.locationPreferences, ...updates.locationPreferences };
+        }
+        setSettings(newSettings);
+
+        try {
+            await api.updateCompanySettings(user.companyId, updates, user.id);
+            addToast("Settings updated.", "success");
+        } catch (error) {
+            setSettings(originalSettings); // Revert on failure
+            addToast("Failed to save settings.", "error");
+        }
+    };
+
     const handleThemeChange = async (newTheme: 'light' | 'dark') => {
-        if (!user.companyId) return;
-        setTheme(newTheme);
-        try {
-            await api.updateCompanySettings(user.companyId, { theme: newTheme }, user.id);
-            addToast("Theme updated!", "success");
-        } catch (error) {
-             addToast("Failed to save theme setting.", "error");
-        }
+        setTheme(newTheme); // Update app theme immediately
+        await handleSettingsUpdate({ theme: newTheme });
     };
+
+    const handleNotificationChange = (key: keyof NotificationPreferences, value: boolean) => {
+        const newPrefs = { ...settings?.notificationPreferences, [key]: value };
+        handleSettingsUpdate({ notificationPreferences: newPrefs as NotificationPreferences });
+    };
+
+    const handleLocationChange = (key: keyof LocationPreferences, value: any) => {
+        const newPrefs = { ...settings?.locationPreferences, [key]: value };
+        handleSettingsUpdate({ locationPreferences: newPrefs as LocationPreferences });
+    };
+
+    if (isLoading) {
+        return <Card><p>Loading settings...</p></Card>;
+    }
     
-    const handleNotificationChange = async (key: keyof NotificationPreferences, value: boolean) => {
-        if (!settings || !user.companyId) return;
-        
-        const newPrefs = { ...(settings.notificationPreferences || {}), [key]: value };
-        setSettings({ ...settings, notificationPreferences: newPrefs as NotificationPreferences });
-        
-        try {
-            await api.updateCompanySettings(user.companyId, { notificationPreferences: newPrefs as NotificationPreferences }, user.id);
-             addToast("Notification settings saved.", "success");
-        } catch (error) {
-             addToast("Failed to save notification settings.", "error");
-        }
-    };
-    
-    const handleSaveCompanySettings = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!settings || !user.companyId) return;
-        try {
-            const { timesheetRetentionDays, country, currency } = settings;
-            await api.updateCompanySettings(user.companyId, { timesheetRetentionDays, country, currency }, user.id);
-            addToast("Company settings saved.", "success");
-        } catch (error) {
-            addToast("Failed to save company settings.", "error");
-        }
-    };
-
-    const isAdmin = user.role === Role.ADMIN;
-
-    const navItems = [
-        { id: 'profile', label: 'Profile', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg> },
-        ...(isAdmin && user.companyId ? [{ id: 'company', label: 'Company', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> }] : []),
-        ...(user.companyId ? [{ id: 'notifications', label: 'Notifications', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg> }] : []),
-        ...(user.companyId ? [{ id: 'appearance', label: 'Appearance', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> }] : []),
-    ];
-
-    const renderSection = () => {
-        if (isLoading) return <p>Loading settings...</p>;
-
-        switch(activeSection) {
-            case 'profile':
-                return (
-                    <div>
-                        <h3 className="text-xl font-bold mb-4">Your Profile</h3>
-                        <div className="space-y-4">
-                            <div className="flex flex-col">
-                                <label className="text-sm font-medium text-slate-500">Name</label>
-                                <p>{user.name}</p>
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-sm font-medium text-slate-500">Email</label>
-                                <p>{user.email}</p>
-                            </div>
-                            <div className="flex flex-col">
-                                <label className="text-sm font-medium text-slate-500">Role</label>
-                                <p>{user.role}</p>
-                            </div>
-                        </div>
-                    </div>
-                );
-            case 'company':
-                 if (!isAdmin || !settings || !company) return null;
-                 return (
-                    <div>
-                        <h3 className="text-xl font-bold mb-4">Company Settings</h3>
-                        <form onSubmit={handleSaveCompanySettings} className="space-y-6">
-                            <div>
-                                <label htmlFor="company-name" className="block text-sm font-medium text-slate-500 mb-1">Company Name</label>
-                                <input type="text" id="company-name" value={company.name} disabled className="w-full max-w-sm p-2 border border-gray-300 rounded-md bg-slate-100 cursor-not-allowed"/>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div>
-                                    <label htmlFor="company-country" className="block text-sm font-medium text-slate-500 mb-1">Country</label>
-                                    <input type="text" id="company-country" value={settings.country} onChange={e => setSettings({...settings, country: e.target.value })} required className="w-full p-2 border border-gray-300 rounded-md" />
-                                </div>
-                                <div>
-                                    <label htmlFor="company-currency" className="block text-sm font-medium text-slate-500 mb-1">Currency</label>
-                                     <select id="company-currency" value={settings.currency} onChange={e => setSettings({...settings, currency: e.target.value as CompanySettings['currency'] })} className="w-full p-2 border border-gray-300 bg-white rounded-md">
-                                        <option value="USD">USD ($)</option>
-                                        <option value="GBP">GBP (£)</option>
-                                        <option value="EUR">EUR (€)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label htmlFor="retention-policy" className="block text-sm font-medium text-slate-500 mb-1">Timesheet Retention Policy (Days)</label>
-                                <input type="number" id="retention-policy" value={settings.timesheetRetentionDays} onChange={e => setSettings({...settings, timesheetRetentionDays: parseInt(e.target.value) })} required className="w-full max-w-sm p-2 border border-gray-300 rounded-md" />
-                                <p className="text-xs text-slate-500 mt-1">How long to keep timesheet records before automatic deletion.</p>
-                            </div>
-                             <div className="text-left">
-                                <Button type="submit">Save Changes</Button>
-                            </div>
-                        </form>
-                    </div>
-                 );
-            case 'notifications':
-                if (!settings) return null;
-                const prefs = settings.notificationPreferences || { taskDueDate: false, newDocumentAssigned: false, timesheetFlagged: false };
-                return (
-                    <div>
-                        <h3 className="text-xl font-bold mb-4">Notification Preferences</h3>
-                        <div className="space-y-4 max-w-lg">
-                           <div className="flex justify-between items-center p-3 border rounded-md">
-                               <div>
-                                   <label className="font-medium">Task Due Soon</label>
-                                   <p className="text-sm text-slate-500">Get a notification when a task you are assigned to is approaching its due date.</p>
-                               </div>
-                               <ToggleSwitch checked={!!prefs.taskDueDate} onChange={(val) => handleNotificationChange('taskDueDate', val)} />
-                           </div>
-                           <div className="flex justify-between items-center p-3 border rounded-md">
-                               <div>
-                                   <label className="font-medium">New Document Assigned</label>
-                                   <p className="text-sm text-slate-500">Receive an alert when a new document requires your acknowledgement.</p>
-                               </div>
-                               <ToggleSwitch checked={!!prefs.newDocumentAssigned} onChange={(val) => handleNotificationChange('newDocumentAssigned', val)} />
-                           </div>
-                           <div className="flex justify-between items-center p-3 border rounded-md">
-                               <div>
-                                   <label className="font-medium">Timesheet Flagged</label>
-                                   <p className="text-sm text-slate-500">(Managers) Be notified when an operative's timesheet is flagged for review.</p>
-                               </div>
-                               <ToggleSwitch checked={!!prefs.timesheetFlagged} onChange={(val) => handleNotificationChange('timesheetFlagged', val)} disabled={!isAdmin && user.role !== Role.PM} />
-                           </div>
-                        </div>
-                    </div>
-                );
-            case 'appearance':
-                return (
-                    <div>
-                        <h3 className="text-xl font-bold mb-4">Appearance</h3>
-                        <p className="text-sm text-slate-500 mb-4">Customize the look and feel of the application.</p>
-                        <div className="p-3 border rounded-md max-w-lg">
-                           <div className="flex justify-between items-center">
-                               <label className="font-medium">Theme</label>
-                               <div className="flex items-center gap-2">
-                                    <span className={theme === 'light' ? '' : 'text-slate-500'}>Light</span>
-                                    <ToggleSwitch checked={theme === 'dark'} onChange={(isDark) => handleThemeChange(isDark ? 'dark' : 'light')} />
-                                    <span className={theme === 'dark' ? '' : 'text-slate-500'}>Dark</span>
-                               </div>
-                           </div>
-                        </div>
-                    </div>
-                );
-        }
-    };
+    const notifPrefs = settings?.notificationPreferences;
+    const locPrefs = settings?.locationPreferences;
 
     return (
-        <div>
+        <div className="max-w-3xl mx-auto">
             <h2 className="text-3xl font-bold text-slate-800 mb-6">Settings</h2>
-            <div className="flex flex-col md:flex-row gap-8">
-                <aside className="md:w-1/4 lg:w-1/5">
-                    <nav className="flex flex-col space-y-1">
-                        {navItems.map(item => (
-                            <button
-                                key={item.id}
-                                onClick={() => setActiveSection(item.id as SettingsSection)}
-                                className={`flex items-center gap-3 p-2 rounded-md text-left transition-colors ${activeSection === item.id ? 'bg-slate-200 dark:bg-slate-700 font-semibold' : 'hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                            >
-                                {item.icon}
-                                {item.label}
-                            </button>
-                        ))}
-                    </nav>
-                </aside>
-                <main className="flex-1 md:w-3/4 lg:w-4/5">
+            <div className="space-y-8">
+                {/* Profile Card */}
+                <Card className="flex items-center gap-4">
+                    <Avatar name={user.name} className="w-16 h-16 text-2xl"/>
+                    <div className="flex-grow">
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-xl font-bold">{user.name}</h3>
+                            <Tag label={user.role} color="blue" />
+                        </div>
+                        <p className="text-slate-500">{user.email}</p>
+                    </div>
+                    <Button variant="ghost" size="sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.5L16.732 3.732z" /></svg>
+                        Edit
+                    </Button>
+                </Card>
+
+                {/* Account Settings */}
+                <Card>
+                    <h4 className="text-lg font-semibold px-3 mb-2">Account Settings</h4>
+                    <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>} label="Change Password" description="Update your account password" action="arrow" onClick={() => {}} />
+                    <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>} label="Email Preferences" description="Manage email notifications" action="arrow" onClick={() => {}} />
+                    <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-1.026.977-2.19.977-3.418a8.962 8.962 0 00-14.904-6.07" /></svg>} label="Two-Factor Authentication" description="Add extra security to your account" action={<ToggleSwitch checked={false} onChange={() => {}} />} />
+                    <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>} label="Sign Out" description="Sign out of your account" action="arrow" onClick={() => {}} />
+                </Card>
+
+                {/* Location Preferences */}
+                 {locPrefs && (
                     <Card>
-                        {renderSection()}
+                        <h4 className="text-lg font-semibold px-3 mb-2">Location Preferences</h4>
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} label="GPS Accuracy" description="High accuracy uses more battery" action={<ToggleSwitch checked={locPrefs.gpsAccuracy === 'high'} onChange={c => handleLocationChange('gpsAccuracy', c ? 'high' : 'standard')} />} />
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} label="Background Tracking" description="Track location when app is closed" action={<ToggleSwitch checked={locPrefs.backgroundTracking} onChange={c => handleLocationChange('backgroundTracking', c)} />} />
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>} label="Location History" description={`Retain location data for ${locPrefs.locationHistoryDays} days`} action="arrow" onClick={() => {}} />
                     </Card>
-                </main>
+                 )}
+
+                {/* Notifications */}
+                {notifPrefs && (
+                     <Card>
+                        <h4 className="text-lg font-semibold px-3 mb-2">Notifications</h4>
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>} label="Project Updates" description="New projects and assignments" action={<ToggleSwitch checked={notifPrefs.projectUpdates} onChange={c => handleNotificationChange('projectUpdates', c)} />} />
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} label="Time Reminders" description="Check-in and check-out reminders" action={<ToggleSwitch checked={notifPrefs.timeReminders} onChange={c => handleNotificationChange('timeReminders', c)} />} />
+                        <SettingsRow icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} label="Photo Requirements" description="Photo capture notifications" action={<ToggleSwitch checked={notifPrefs.photoRequirements} onChange={c => handleNotificationChange('photoRequirements', c)} />} />
+                    </Card>
+                )}
+
+                {/* Appearance */}
+                 <Card>
+                    <h4 className="text-lg font-semibold px-3 mb-2">Appearance</h4>
+                    <SettingsRow 
+                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>} 
+                        label="Theme" 
+                        description="Customize the look and feel" 
+                        action={
+                             <div className="flex items-center gap-2">
+                                <span className={theme === 'light' ? '' : 'text-slate-500'}>Light</span>
+                                <ToggleSwitch checked={theme === 'dark'} onChange={(isDark) => handleThemeChange(isDark ? 'dark' : 'light')} />
+                                <span className={theme === 'dark' ? '' : 'text-slate-500'}>Dark</span>
+                           </div>
+                        } 
+                    />
+                </Card>
             </div>
         </div>
     );

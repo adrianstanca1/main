@@ -1,7 +1,8 @@
 import React from 'react';
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+  // FIX: Made children prop optional to allow for empty cards, which are used for loading skeletons.
+  children?: React.ReactNode;
   className?: string;
 }
 

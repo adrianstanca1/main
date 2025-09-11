@@ -1,199 +1,143 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { User, Project, View, Role } from '../types';
+
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { User, View, Project, Role } from '../types';
 import { api } from '../services/mockApi';
 
 interface CommandPaletteProps {
-    user: User;
-    onClose: () => void;
-    setActiveView: (view: View) => void;
-    onSelectProject: (project: Project) => void;
+  user: User;
+  onClose: () => void;
+  setActiveView: (view: View) => void;
 }
 
-const getNavItems = (role: Role): { name: string; view: View }[] => {
-    const baseItems = [
-         { name: 'AI Business Advisor', view: 'tools' as const },
-    ];
-    switch (role) {
-        case Role.ADMIN:
-            return [
-                ...baseItems,
-                { name: 'Dashboard', view: 'dashboard' },
-                { name: 'Invoices', view: 'invoices' },
-                { name: 'Projects', view: 'projects' },
-                { name: 'Clients', view: 'clients' },
-                { name: 'Team', view: 'users' },
-                { name: 'Documents', view: 'documents' },
-                { name: 'Equipment', view: 'equipment' },
-                { name: 'Tools', view: 'tools' },
-            ];
-        case Role.PM:
-             return [
-                ...baseItems,
-                { name: 'Dashboard', view: 'dashboard' },
-                { name: 'Invoices', view: 'invoices' },
-                { name: 'Projects', view: 'projects' },
-                { name: 'Clients', view: 'clients' },
-                { name: 'Timesheets', view: 'timesheets' },
-                { name: 'Documents', view: 'documents' },
-                { name: 'Equipment', view: 'equipment' },
-                { name: 'Tools', view: 'tools' },
-            ];
-        case Role.OPERATIVE:
-             return [
-                { name: 'Dashboard', view: 'dashboard' },
-                { name: 'Timesheets', view: 'timesheets' },
-                { name: 'Documents', view: 'documents' },
-            ];
-        default: // Foreman, Safety Officer etc. for simplicity
-             return [
-                ...baseItems,
-                { name: 'Dashboard', view: 'dashboard' },
-                { name: 'Projects', view: 'projects' },
-            ];
-    }
-};
+interface Command {
+  id: string;
+  type: 'navigation' | 'project' | 'action';
+  title: string;
+  category: string;
+  action: () => void;
+  keywords?: string;
+  icon: React.ReactNode;
+}
 
-
-export const CommandPalette: React.FC<CommandPaletteProps> = ({ user, onClose, setActiveView, onSelectProject }) => {
-    const [query, setQuery] = useState('');
+export const CommandPalette: React.FC<CommandPaletteProps> = ({ user, onClose, setActiveView }) => {
+    const [search, setSearch] = useState('');
     const [projects, setProjects] = useState<Project[]>([]);
-    const [users, setUsers] = useState<User[]>([]);
-    const [loading, setLoading] = useState(true);
     const [activeIndex, setActiveIndex] = useState(0);
-
     const inputRef = useRef<HTMLInputElement>(null);
-    const resultsRef = useRef<HTMLDivElement>(null);
-
-    const handleSelect = useCallback((result: (typeof results)[number]) => {
-        switch (result.type) {
-            case 'view':
-                setActiveView(result.data.view);
-                break;
-            case 'project':
-                onSelectProject(result.data);
-                break;
-            case 'user':
-                setActiveView('users');
-                break;
-        }
-        onClose();
-    }, [setActiveView, onSelectProject, onClose]);
 
     useEffect(() => {
-        inputRef.current?.focus();
-
-        const fetchData = async () => {
-            setLoading(true);
+        const fetchProjects = async () => {
+            if (!user.companyId) return;
             try {
-                const [projectsData, usersData] = await Promise.all([
-                    api.getProjectsByCompany(user.companyId),
-                    api.getUsersByCompany(user.companyId),
-                ]);
-                setProjects(projectsData);
-                setUsers(usersData);
+                const userProjects = user.role === Role.ADMIN
+                    ? await api.getProjectsByCompany(user.companyId)
+                    : await api.getProjectsByUser(user.id);
+                setProjects(userProjects);
             } catch (error) {
-                console.error("Failed to load data for command palette", error);
-            } finally {
-                setLoading(false);
+                console.error("Failed to load projects for command palette", error);
             }
         };
+        fetchProjects();
+    }, [user]);
 
-        fetchData();
-    }, [user.companyId]);
+    const allCommands = useMemo<Command[]>(() => {
+        const navCommands: Command[] = [
+            { id: 'nav-dashboard', type: 'navigation', title: 'Go to Dashboard', category: 'Navigation', action: () => setActiveView('dashboard'), keywords: 'home main', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>},
+            { id: 'nav-timesheets', type: 'navigation', title: 'Go to Timesheets', category: 'Navigation', action: () => setActiveView('timesheets'), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
+            { id: 'nav-documents', type: 'navigation', title: 'Go to Documents', category: 'Navigation', action: () => setActiveView('documents'), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+            { id: 'nav-settings', type: 'navigation', title: 'Go to Settings', category: 'Navigation', action: () => setActiveView('settings'), icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
+        ];
+        const projectCommands: Command[] = projects.map(p => ({
+            id: `proj-${p.id}`,
+            type: 'project',
+            title: p.name,
+            category: 'Projects',
+            action: () => console.log('Navigate to project', p.id), // Replace with actual navigation
+            keywords: p.location.address,
+            icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+        }));
+        return [...navCommands, ...projectCommands];
+    }, [projects, setActiveView]);
 
-    const lowerQuery = query.toLowerCase();
+    const filteredCommands = useMemo(() => {
+        if (!search) return allCommands;
+        const lowerCaseSearch = search.toLowerCase();
+        return allCommands.filter(cmd =>
+            cmd.title.toLowerCase().includes(lowerCaseSearch) ||
+            cmd.category.toLowerCase().includes(lowerCaseSearch) ||
+            cmd.keywords?.toLowerCase().includes(lowerCaseSearch)
+        );
+    }, [search, allCommands]);
 
-    const views = useMemo(() => getNavItems(user.role).filter(v => v.name.toLowerCase().includes(lowerQuery)), [user.role, lowerQuery]);
-    const filteredProjects = useMemo(() => projects.filter(p => p.name.toLowerCase().includes(lowerQuery)), [projects, lowerQuery]);
-    const filteredUsers = useMemo(() => users.filter(u => u.name.toLowerCase().includes(lowerQuery)), [users, lowerQuery]);
+    useEffect(() => {
+        setActiveIndex(0);
+    }, [filteredCommands]);
 
-    const results = useMemo(() => [
-        ...views.map(v => ({ type: 'view' as const, data: v })),
-        ...filteredProjects.map(p => ({ type: 'project' as const, data: p })),
-        ...filteredUsers.map(u => ({ type: 'user' as const, data: u })),
-    ], [views, filteredProjects, filteredUsers]);
-
-     useEffect(() => {
+    useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setActiveIndex(prev => (prev + 1) % results.length);
+                setActiveIndex(i => (i + 1) % filteredCommands.length);
             } else if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                setActiveIndex(prev => (prev - 1 + results.length) % results.length);
+                setActiveIndex(i => (i - 1 + filteredCommands.length) % filteredCommands.length);
             } else if (e.key === 'Enter') {
                 e.preventDefault();
-                const activeResult = results[activeIndex];
-                if (activeResult) {
-                    handleSelect(activeResult);
+                if (filteredCommands[activeIndex]) {
+                    handleSelect(filteredCommands[activeIndex]);
                 }
             }
         };
-
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [activeIndex, results, handleSelect]);
+    }, [filteredCommands, activeIndex]);
 
+    const handleSelect = (command: Command) => {
+        command.action();
+        onClose();
+    };
+    
     useEffect(() => {
-        resultsRef.current?.children[activeIndex]?.scrollIntoView({
-            block: 'nearest',
-        });
-    }, [activeIndex]);
-
-    const ResultItem = ({ item, isActive, onSelect }: { item: (typeof results)[number], isActive: boolean, onSelect: () => void }) => {
-        const iconMap: Record<string, React.ReactNode> = {
-            view: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
-            project: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>,
-            user: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-        };
-
-        return (
-            <div 
-                onClick={onSelect}
-                className={`flex items-center gap-3 p-3 rounded-md cursor-pointer ${isActive ? 'bg-slate-800 text-white' : 'hover:bg-slate-100'}`}
-            >
-                <span className={isActive ? 'text-white' : 'text-slate-500'}>{iconMap[item.type]}</span>
-                <span className="flex-grow">{item.data.name}</span>
-                <span className="text-xs uppercase text-slate-400">{item.type}</span>
-            </div>
-        )
-    }
+        inputRef.current?.focus();
+    }, []);
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex justify-center pt-20" onClick={onClose}>
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl h-fit max-h-[60vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center pt-24" onClick={onClose}>
+            <div className="w-full max-w-lg bg-white rounded-lg shadow-2xl h-fit max-h-[60vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="p-3 border-b flex items-center gap-3">
+                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     <input
                         ref={inputRef}
                         type="text"
-                        value={query}
-                        onChange={(e) => {
-                            setQuery(e.target.value);
-                            setActiveIndex(0);
-                        }}
-                        placeholder="Type a command or search..."
-                        className="w-full bg-transparent text-lg placeholder-slate-400 focus:outline-none"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Search commands or projects..."
+                        className="w-full bg-transparent focus:outline-none"
                     />
                 </div>
-                <div ref={resultsRef} className="flex-grow overflow-y-auto p-2">
-                    {loading && <p className="p-4 text-center text-slate-500">Loading...</p>}
-                    {!loading && results.length === 0 && <p className="p-4 text-center text-slate-500">No results found.</p>}
-                    {!loading && results.map((item, index) => (
-                         <ResultItem
-                            key={(() => {
-                                switch (item.type) {
-                                    case 'view':
-                                        return `${item.type}-${item.data.view}`;
-                                    case 'project':
-                                    case 'user':
-                                        return `${item.type}-${item.data.id}`;
-                                }
-                            })()}
-                            item={item}
-                            isActive={index === activeIndex}
-                            onSelect={() => handleSelect(item)}
-                         />
-                    ))}
+                <div className="overflow-y-auto flex-grow">
+                    {filteredCommands.length > 0 ? (
+                        <ul>
+                            {filteredCommands.map((cmd, index) => (
+                                <li key={cmd.id}>
+                                    <button
+                                        onClick={() => handleSelect(cmd)}
+                                        className={`w-full text-left p-3 flex items-center justify-between gap-3 ${index === activeIndex ? 'bg-slate-100' : 'hover:bg-slate-50'}`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-slate-400">{cmd.icon}</span>
+                                            <span>{cmd.title}</span>
+                                        </div>
+                                        <span className="text-xs bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">{cmd.category}</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p className="text-center text-slate-500 py-10">No results found.</p>
+                    )}
                 </div>
             </div>
         </div>

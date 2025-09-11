@@ -244,7 +244,8 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                             <div>
                                 <label htmlFor="upload-category" className="block text-sm font-medium text-gray-700">Category</label>
                                 <select id="upload-category" value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value as DocumentCategory)} className="mt-1 block w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
-                                    {Object.values(DocumentCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                                    {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
+                                    {Object.values(DocumentCategory).map(c => <option key={String(c)} value={c}>{c}</option>)}
                                 </select>
                             </div>
                             <div className="flex items-end">
@@ -279,14 +280,16 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast }) 
                         <label htmlFor="category-filter" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                         <select id="category-filter" name="category" value={filters.category} onChange={handleFilterChange} className="w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
                             <option value="all">All Categories</option>
-                            {Object.values(DocumentCategory).map(c => <option key={c} value={c}>{c}</option>)}
+                            {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
+                            {Object.values(DocumentCategory).map(c => <option key={String(c)} value={c}>{c}</option>)}
                         </select>
                     </div>
                      <div className="flex-shrink-0">
                         <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                         <select id="status-filter" name="status" value={filters.status} onChange={handleFilterChange} className="w-full p-2 border border-gray-300 bg-white rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500">
                             <option value="all">All Statuses</option>
-                            {Object.values(DocumentStatus).filter(s => s !== DocumentStatus.UPLOADING).map(s => <option key={s} value={s}>{s}</option>)}
+                            {/* FIX: Explicitly convert enum value to string for key prop to satisfy TypeScript. */}
+                            {Object.values(DocumentStatus).filter(s => s !== DocumentStatus.UPLOADING).map(s => <option key={String(s)} value={s}>{s}</option>)}
                         </select>
                     </div>
                 </div>

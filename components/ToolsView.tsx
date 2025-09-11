@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// FIX: Import Tool and ToolStatus types.
 import { User, View, Tool, ToolStatus } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
@@ -12,6 +13,7 @@ import { RiskBot } from './RiskBot';
 import { BidPackageGenerator } from './BidPackageGenerator';
 import { DailySummaryGenerator } from './DailySummaryGenerator';
 import { Tag } from './ui/Tag';
+import { AISiteInspector } from './AISiteInspector';
 
 
 interface ToolsViewProps {
@@ -97,6 +99,7 @@ export const ToolsView: React.FC<ToolsViewProps> = ({ user, addToast }) => {
             case 'risk-bot': return <RiskBot user={user} addToast={addToast} onBack={handleBack} />;
             case 'bid-generator': return <BidPackageGenerator user={user} addToast={addToast} onBack={handleBack} />;
             case 'daily-summary': return <DailySummaryGenerator user={user} addToast={addToast} onBack={handleBack} />;
+            case 'site-inspector': return <AISiteInspector user={user} addToast={addToast} onBack={handleBack} />;
             default:
                 return (
                     <Card>

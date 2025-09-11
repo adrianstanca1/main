@@ -1,5 +1,5 @@
 import React from 'react';
-import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus } from '../../types';
+import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus, UserStatus } from '../../types';
 
 export const DocumentStatusBadge: React.FC<{ status: DocumentStatus }> = ({ status }) => {
     const statusMap = {
@@ -72,4 +72,14 @@ export const QuoteStatusBadge: React.FC<{ status: QuoteStatus }> = ({ status }) 
         [QuoteStatus.DRAFT]: 'bg-slate-200 text-slate-800',
     };
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusMap[status]}`}>{status}</span>;
+}
+
+export const UserStatusBadge: React.FC<{ status: UserStatus }> = ({ status }) => {
+    const statusConfig = {
+        [UserStatus.ON_SITE]: { text: 'On Site', color: 'bg-green-100 text-green-800', icon: <div className="w-1.5 h-1.5 bg-green-500 rounded-full" /> },
+        [UserStatus.ON_BREAK]: { text: 'On Break', color: 'bg-yellow-100 text-yellow-800', icon: <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full" /> },
+        [UserStatus.OFF_SITE]: { text: 'Off Site', color: 'bg-slate-200 text-slate-700', icon: <div className="w-1.5 h-1.5 bg-slate-500 rounded-full" /> },
+    };
+    const { text, color, icon } = statusConfig[status] || statusConfig[UserStatus.OFF_SITE];
+    return <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${color}`}>{icon} {text}</span>;
 }

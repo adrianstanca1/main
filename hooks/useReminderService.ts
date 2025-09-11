@@ -54,7 +54,7 @@ export const useReminderService = (user: User | null) => {
                 )).flat();
 
                 const taskMap = new Map<number, Todo>();
-                // FIX: Ensure only tasks with numeric IDs are added to the map, as offline tasks might have string IDs.
+                // Ensure only tasks with numeric IDs are added to the map, as offline tasks might have string IDs.
                 allTasks.forEach(t => {
                     if (typeof t.id === 'number') {
                         taskMap.set(t.id, t);

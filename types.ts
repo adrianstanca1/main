@@ -1,226 +1,208 @@
-import { Type } from "@google/genai";
+// This file contains all the core data types and enums for the application.
+
+// --- Core Enums ---
 
 export enum Role {
-    PRINCIPAL_ADMIN = 'Principal Admin',
-    ADMIN = 'Company Admin',
-    PM = 'Project Manager',
-    OPERATIVE = 'Operative',
-    FOREMAN = 'Foreman',
-    SAFETY_OFFICER = 'Safety Officer'
+  PRINCIPAL_ADMIN = 'Principal Admin',
+  ADMIN = 'Company Admin',
+  PM = 'Project Manager',
+  FOREMAN = 'Foreman',
+  SAFETY_OFFICER = 'Safety Officer',
+  OPERATIVE = 'Operative',
 }
 
-// A centralized permissions system
+export type View =
+  | 'dashboard'
+  | 'principal-dashboard'
+  | 'projects'
+  | 'documents'
+  | 'safety'
+  | 'timesheets'
+  | 'time'
+  | 'settings'
+  | 'users'
+  | 'chat'
+  | 'tools'
+  | 'financials'
+  | 'equipment'
+  | 'templates';
+
+// --- Permissions ---
+
 export enum Permission {
-    // Platform-level permissions
-    MANAGE_TENANTS = 'MANAGE_TENANTS', // Invite, suspend, archive companies
-    VIEW_PLATFORM_METRICS = 'VIEW_PLATFORM_METRICS',
+  // Project Management
+  VIEW_ALL_PROJECTS = 'VIEW_ALL_PROJECTS',
+  VIEW_ASSIGNED_PROJECTS = 'VIEW_ASSIGNED_PROJECTS',
+  MANAGE_PROJECTS = 'MANAGE_PROJECTS', // Create, edit, delete
+  MANAGE_PROJECT_TEMPLATES = 'MANAGE_PROJECT_TEMPLATES',
+  
+  // Tasks
+  MANAGE_TASKS = 'MANAGE_TASKS', // Create, edit, assign, delete
+  VIEW_ALL_TASKS = 'VIEW_ALL_TASKS',
+  VIEW_ASSIGNED_TASKS = 'VIEW_ASSIGNED_TASKS',
 
-    // Company-level permissions
-    VIEW_ALL_PROJECTS = 'VIEW_ALL_PROJECTS',
-    VIEW_ASSIGNED_PROJECTS = 'VIEW_ASSIGNED_PROJECTS',
-    MANAGE_PROJECTS = 'MANAGE_PROJECTS', // Create, edit project settings
-    VIEW_ALL_TIMESHEETS = 'VIEW_ALL_TIMESHEETS',
-    MANAGE_TIMESHEETS = 'MANAGE_TIMESHEETS', // Approve, reject
-    VIEW_OWN_TIMESHEETS = 'VIEW_OWN_TIMESHEETS',
-    SUBMIT_TIMESHEET = 'SUBMIT_TIMESHEET',
-    MANAGE_DOCUMENTS = 'MANAGE_DOCUMENTS', // Upload, delete, manage versions
-    VIEW_DOCUMENTS = 'VIEW_DOCUMENTS',
-    ACKNOWLEDGE_DOCUMENTS = 'ACKNOWLEDGE_DOCUMENTS',
-    MANAGE_TEAM = 'MANAGE_TEAM', // Add, remove users from company/project
-    VIEW_TEAM = 'VIEW_TEAM',
-    MANAGE_TASKS = 'MANAGE_TASKS', // Create, edit, assign tasks
-    VIEW_TASKS = 'VIEW_TASKS',
-    UPDATE_OWN_TASK_STATUS = 'UPDATE_OWN_TASK_STATUS',
-    MANAGE_FINANCES = 'MANAGE_FINANCES', // Invoices, Quotes, Clients
-    VIEW_FINANCES = 'VIEW_FINANCES',
-    MANAGE_SAFETY_REPORTS = 'MANAGE_SAFETY_REPORTS',
-    VIEW_SAFETY_REPORTS = 'VIEW_SAFETY_REPORTS',
-    SUBMIT_SAFETY_REPORT = 'SUBMIT_SAFETY_REPORT',
-    SUBMIT_DAILY_REPORT = 'SUBMIT_DAILY_REPORT',
-    VIEW_COMPANY_SETTINGS = 'VIEW_COMPANY_SETTINGS',
-    MANAGE_COMPANY_SETTINGS = 'MANAGE_COMPANY_SETTINGS',
-    ACCESS_ALL_TOOLS = 'ACCESS_ALL_TOOLS',
-    ACCESS_PROJECT_TOOLS = 'ACCESS_PROJECT_TOOLS',
-    ACCESS_FINANCIAL_TOOLS = 'ACCESS_FINANCIAL_TOOLS',
-    ACCESS_SAFETY_TOOLS = 'ACCESS_SAFETY_TOOLS',
-    MANAGE_EQUIPMENT = 'MANAGE_EQUIPMENT',
-    SEND_ANNOUNCEMENT = 'SEND_ANNOUNCEMENT',
+  // Team Management
+  VIEW_TEAM = 'VIEW_TEAM',
+  MANAGE_TEAM = 'MANAGE_TEAM', // Invite, edit roles, remove
+
+  // Timesheets
+  SUBMIT_TIMESHEET = 'SUBMIT_TIMESHEET',
+  MANAGE_TIMESHEETS = 'MANAGE_TIMESHEETS', // Approve, reject
+  VIEW_ALL_TIMESHEETS = 'VIEW_ALL_TIMESHEETS',
+  VIEW_OWN_TIMESHEETS = 'VIEW_OWN_TIMESHEETS',
+
+  // Safety
+  SUBMIT_SAFETY_REPORT = 'SUBMIT_SAFETY_REPORT',
+  MANAGE_SAFETY_REPORTS = 'MANAGE_SAFETY_REPORTS', // Review, resolve
+  VIEW_SAFETY_REPORTS = 'VIEW_SAFETY_REPORTS',
+  ACCESS_SAFETY_TOOLS = 'ACCESS_SAFETY_TOOLS',
+  
+  // Documents
+  UPLOAD_DOCUMENTS = 'UPLOAD_DOCUMENTS',
+  VIEW_DOCUMENTS = 'VIEW_DOCUMENTS',
+  MANAGE_DOCUMENTS = 'MANAGE_DOCUMENTS', // Delete, set permissions
+
+  // Financials
+  VIEW_FINANCES = 'VIEW_FINANCES',
+  MANAGE_INVOICES = 'MANAGE_INVOICES',
+  MANAGE_QUOTES = 'MANAGE_QUOTES',
+  
+  // Equipment & Tools
+  MANAGE_EQUIPMENT = 'MANAGE_EQUIPMENT',
+  ACCESS_ALL_TOOLS = 'ACCESS_ALL_TOOLS',
+  
+  // Communication
+  SEND_ANNOUNCEMENT = 'SEND_ANNOUNCEMENT',
+  SEND_DIRECT_MESSAGE = 'SEND_DIRECT_MESSAGE',
 }
 
-// Defines which permissions each role has. This is the single source of truth for access control.
 export const RolePermissions: Record<Role, Set<Permission>> = {
-    [Role.PRINCIPAL_ADMIN]: new Set(Object.values(Permission)), // Super admin has all permissions
-    [Role.ADMIN]: new Set([
-        Permission.VIEW_ALL_PROJECTS, Permission.MANAGE_PROJECTS,
-        Permission.VIEW_ALL_TIMESHEETS, Permission.MANAGE_TIMESHEETS,
-        Permission.MANAGE_DOCUMENTS, Permission.VIEW_DOCUMENTS,
-        Permission.MANAGE_TEAM, Permission.VIEW_TEAM,
-        Permission.MANAGE_TASKS, Permission.VIEW_TASKS,
-        Permission.MANAGE_FINANCES, Permission.VIEW_FINANCES,
-        Permission.MANAGE_SAFETY_REPORTS, Permission.VIEW_SAFETY_REPORTS,
-        Permission.VIEW_COMPANY_SETTINGS, Permission.MANAGE_COMPANY_SETTINGS,
-        Permission.ACCESS_ALL_TOOLS, Permission.ACCESS_PROJECT_TOOLS, Permission.ACCESS_FINANCIAL_TOOLS, Permission.ACCESS_SAFETY_TOOLS,
-        Permission.MANAGE_EQUIPMENT, Permission.SEND_ANNOUNCEMENT,
-    ]),
-    [Role.PM]: new Set([
-        Permission.VIEW_ASSIGNED_PROJECTS, Permission.MANAGE_PROJECTS, // Can manage projects they are assigned to
-        Permission.VIEW_ALL_TIMESHEETS, Permission.MANAGE_TIMESHEETS, // For their projects
-        Permission.MANAGE_DOCUMENTS, Permission.VIEW_DOCUMENTS,
-        Permission.MANAGE_TEAM, Permission.VIEW_TEAM, // Can manage team on their projects
-        Permission.MANAGE_TASKS, Permission.VIEW_TASKS,
-        Permission.MANAGE_FINANCES, Permission.VIEW_FINANCES,
-        Permission.MANAGE_SAFETY_REPORTS, Permission.VIEW_SAFETY_REPORTS,
-        Permission.SUBMIT_DAILY_REPORT,
-        Permission.ACCESS_PROJECT_TOOLS, Permission.ACCESS_SAFETY_TOOLS,
-        Permission.MANAGE_EQUIPMENT, Permission.SEND_ANNOUNCEMENT,
-    ]),
-    [Role.FOREMAN]: new Set([
-        Permission.VIEW_ASSIGNED_PROJECTS,
-        Permission.MANAGE_TASKS, Permission.VIEW_TASKS,
-        Permission.MANAGE_DOCUMENTS, // Can upload site photos, daily logs
-        Permission.VIEW_DOCUMENTS,
-        Permission.SUBMIT_SAFETY_REPORT, Permission.VIEW_SAFETY_REPORTS,
-        Permission.SUBMIT_DAILY_REPORT,
-        Permission.VIEW_TEAM // Can see their project team
-    ]),
-    [Role.SAFETY_OFFICER]: new Set([
-        Permission.VIEW_ALL_PROJECTS, // Needs to see all projects for safety context
-        Permission.VIEW_DOCUMENTS, Permission.ACKNOWLEDGE_DOCUMENTS,
-        Permission.MANAGE_SAFETY_REPORTS, Permission.VIEW_SAFETY_REPORTS,
-        Permission.ACCESS_SAFETY_TOOLS
-    ]),
-    [Role.OPERATIVE]: new Set([
-        Permission.VIEW_OWN_TIMESHEETS, Permission.SUBMIT_TIMESHEET,
-        Permission.VIEW_ASSIGNED_PROJECTS,
-        Permission.VIEW_DOCUMENTS, Permission.ACKNOWLEDGE_DOCUMENTS,
-        Permission.UPDATE_OWN_TASK_STATUS, Permission.VIEW_TASKS,
-        Permission.SUBMIT_SAFETY_REPORT, Permission.SUBMIT_DAILY_REPORT,
-        Permission.VIEW_TEAM // See who is on their project
-    ]),
+  [Role.PRINCIPAL_ADMIN]: new Set(Object.values(Permission)), // Has all permissions
+  [Role.ADMIN]: new Set([
+    Permission.VIEW_ALL_PROJECTS,
+    Permission.MANAGE_PROJECTS,
+    Permission.MANAGE_PROJECT_TEMPLATES,
+    Permission.MANAGE_TASKS,
+    Permission.VIEW_ALL_TASKS,
+    Permission.VIEW_TEAM,
+    Permission.MANAGE_TEAM,
+    Permission.MANAGE_TIMESHEETS,
+    Permission.VIEW_ALL_TIMESHEETS,
+    Permission.MANAGE_SAFETY_REPORTS,
+    Permission.VIEW_SAFETY_REPORTS,
+    Permission.ACCESS_SAFETY_TOOLS,
+    Permission.UPLOAD_DOCUMENTS,
+    Permission.VIEW_DOCUMENTS,
+    Permission.MANAGE_DOCUMENTS,
+    Permission.VIEW_FINANCES,
+    Permission.MANAGE_INVOICES,
+    Permission.MANAGE_QUOTES,
+    Permission.MANAGE_EQUIPMENT,
+    Permission.ACCESS_ALL_TOOLS,
+    Permission.SEND_ANNOUNCEMENT,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+  [Role.PM]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS,
+    Permission.VIEW_ALL_PROJECTS, // Often PMs can see all projects
+    Permission.MANAGE_PROJECTS,
+    Permission.MANAGE_TASKS,
+    Permission.VIEW_ALL_TASKS,
+    Permission.VIEW_TEAM,
+    Permission.MANAGE_TIMESHEETS,
+    Permission.VIEW_ALL_TIMESHEETS,
+    Permission.MANAGE_SAFETY_REPORTS,
+    Permission.VIEW_SAFETY_REPORTS,
+    Permission.ACCESS_SAFETY_TOOLS,
+    Permission.UPLOAD_DOCUMENTS,
+    Permission.VIEW_DOCUMENTS,
+    Permission.VIEW_FINANCES,
+    Permission.MANAGE_EQUIPMENT,
+    Permission.ACCESS_ALL_TOOLS,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+  [Role.FOREMAN]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS,
+    Permission.VIEW_ASSIGNED_TASKS,
+    Permission.VIEW_TEAM,
+    Permission.SUBMIT_TIMESHEET,
+    Permission.VIEW_OWN_TIMESHEETS,
+    Permission.SUBMIT_SAFETY_REPORT,
+    Permission.VIEW_SAFETY_REPORTS,
+    Permission.VIEW_DOCUMENTS,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+  [Role.SAFETY_OFFICER]: new Set([
+    Permission.VIEW_ALL_PROJECTS,
+    Permission.VIEW_SAFETY_REPORTS,
+    Permission.MANAGE_SAFETY_REPORTS,
+    Permission.ACCESS_SAFETY_TOOLS,
+    Permission.SUBMIT_SAFETY_REPORT,
+    Permission.VIEW_DOCUMENTS,
+    Permission.VIEW_TEAM,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+  [Role.OPERATIVE]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS,
+    Permission.VIEW_ASSIGNED_TASKS,
+    Permission.SUBMIT_TIMESHEET,
+    Permission.VIEW_OWN_TIMESHEETS,
+    Permission.SUBMIT_SAFETY_REPORT,
+    Permission.VIEW_DOCUMENTS,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
 };
 
 
-export interface Company {
-    id: number;
-    name: string;
-    status: 'Active' | 'Suspended' | 'Archived';
-    subscriptionPlan?: 'Basic' | 'Pro' | 'Enterprise';
-    storageUsageGB?: number;
-}
+// --- Data Models ---
 
 export interface User {
-    id: number;
-    name: string;
-    email: string;
-    role: Role;
-    companyId?: number; // Foreign Key to Company, optional for Principal Admin
-    createdAt: Date;
+  id: number;
+  name: string;
+  email: string;
+  role: Role;
+  companyId: number;
 }
 
-export interface Site {
-    id: number;
-    name: string;
-    location: { lat: number; lng: number };
-    radius: number;
-    companyId: number; // Foreign Key to Company
-    createdAt: Date;
+export interface Company {
+  id: number;
+  name: string;
+  status: 'Active' | 'Suspended' | 'Archived';
+  subscriptionPlan: string;
+  storageUsageGB: number;
+}
+
+export interface Location {
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    address?: string;
 }
 
 export interface Project {
-    id: number;
-    name: string;
-    siteId: number; // Foreign Key to Site
-    companyId: number; // Foreign Key to Company
-    managerId: number; // Foreign Key to User
-    createdAt: Date;
-    location: {
-        address: string;
-        lat: number;
-        lng: number;
-    };
-    radius: number;
-    budget: number;
-    actualCost: number;
-    imageUrl?: string;
-}
-
-export enum TimesheetStatus {
-    PENDING = 'Pending',
-    APPROVED = 'Approved',
-    REJECTED = 'Rejected',
-    FLAGGED = 'Flagged for Review'
-}
-
-export enum WorkType {
-    GENERAL_LABOR = 'General Labor',
-    EQUIPMENT_OPERATION = 'Equipment Operation',
-    SITE_PREP = 'Site Prep',
-    CONCRETE = 'Concrete',
-    FRAMING = 'Framing',
-    ELECTRICAL = 'Electrical',
-    PLUMBING = 'Plumbing'
-}
-
-export interface Break {
-    startTime: Date;
-    endTime: Date | null;
-}
-
-export interface Timesheet {
-    id: number;
-    userId: number; // Foreign Key to User
-    projectId: number; // Foreign Key to Project
-    clockIn: Date;
-    clockOut: Date | null;
-    status: TimesheetStatus;
-    clockInLocation?: { lat: number; lng: number };
-    clockOutLocation?: { lat: number; lng: number };
-    trustScore?: number;
-    trustReasons?: Record<string, any>;
-    workType: WorkType;
-    breaks: Break[];
-    comment: string;
-}
-
-export enum DocumentStatus {
-    UPLOADING = 'Uploading',
-    SCANNING = 'Scanning',
-    APPROVED = 'Approved',
-    QUARANTINED = 'Quarantined'
-}
-
-export enum DocumentCategory {
-    HS = 'H&S',
-    BLUEPRINT = 'Blueprint',
-    GENERAL = 'General',
-    POLICY = 'Policy'
-}
-
-export interface Document {
-    id: number;
-    name: string;
-    url: string;
-    projectId: number; // Foreign Key to Project
-    status: DocumentStatus;
-    uploadedAt: Date;
-    category: DocumentCategory;
-    indexedContent?: string;
-    version: number;
-    documentGroupId: number;
-    relatedDocumentIds?: number[];
-    creatorId: number; // Foreign Key to User
+  id: number;
+  name: string;
+  location: Location;
+  startDate: Date;
+  budget: number;
+  actualCost: number;
+  status: 'Active' | 'On Hold' | 'Completed';
+  imageUrl: string;
+  projectType: string;
+  workClassification: string;
+  companyId: number;
 }
 
 export enum TodoStatus {
     TODO = 'To Do',
     IN_PROGRESS = 'In Progress',
-    DONE = 'Done'
+    DONE = 'Done',
 }
 
 export enum TodoPriority {
-    LOW = 'Low',
+    HIGH = 'High',
     MEDIUM = 'Medium',
-    HIGH = 'High'
+    LOW = 'Low',
 }
 
 export interface SubTask {
@@ -231,284 +213,282 @@ export interface SubTask {
 
 export interface Comment {
     id: number;
+    creatorId: number;
     text: string;
-    creatorId: number; // Foreign Key to User
     createdAt: Date;
 }
 
 export interface Todo {
-    id: number | string; // Allow string for temporary offline IDs
+    id: number | string; // string for optimistic offline tasks
+    projectId: number;
+    creatorId: number;
     text: string;
     status: TodoStatus;
-    projectId: number; // Foreign Key to Project
     priority: TodoPriority;
+    createdAt: Date;
     dueDate?: Date;
-    dependsOn?: number;
+    completedAt?: Date;
+    dependsOn?: number | string;
     subTasks?: SubTask[];
     comments?: Comment[];
-    createdAt: Date;
-    creatorId: number; // Foreign Key to User
     reminderAt?: Date;
-    isOffline?: boolean; // Flag for UI to show it's not synced
-    isSafetyTask?: boolean;
+    isOffline?: boolean;
 }
 
-export interface ProjectAssignment {
-    userId: number; // Foreign Key to User
-    projectId: number; // Foreign Key to Project
+export enum WorkType {
+    GENERAL_LABOR = 'General Labor',
+    EQUIPMENT_OPERATION = 'Equipment Operation',
+}
+
+export enum TimesheetStatus {
+    PENDING = 'Pending',
+    APPROVED = 'Approved',
+    REJECTED = 'Rejected',
+    FLAGGED = 'Flagged'
+}
+
+export interface Timesheet {
+    id: number;
+    userId: number;
+    projectId: number;
+    clockIn: Date;
+    clockOut: Date | null;
+    clockInLocation: Location | null;
+    clockOutLocation: Location | null;
+    workType: WorkType;
+    status: TimesheetStatus;
+    comment?: string;
+    checkInPhotoUrl?: string;
+    checkOutPhotoUrl?: string;
+    breaks: { startTime: Date; endTime: Date | null }[];
+    trustScore?: number;
+    trustReasons?: Record<string, string>;
+    invoiceId?: number;
+}
+
+export enum DocumentCategory {
+    GENERAL = 'General',
+    BLUEPRINTS = 'Blueprints',
+    HS = 'Health & Safety',
+    CONTRACT = 'Contract',
+    INVOICE = 'Invoice',
+}
+
+export enum DocumentStatus {
+    UPLOADING = 'Uploading',
+    SCANNING = 'Scanning',
+    APPROVED = 'Approved',
+    QUARANTINED = 'Quarantined',
+}
+
+export interface Document {
+    id: number;
+    name: string;
+    url: string;
+    projectId: number;
+    category: DocumentCategory;
+    status: DocumentStatus;
+    uploadedAt: Date;
+    creatorId: number;
+    version: number;
 }
 
 export interface DocumentAcknowledgement {
     id: number;
-    userId: number; // Foreign Key to User
-    documentId: number; // Foreign Key to Document
+    documentId: number;
+    userId: number;
     acknowledgedAt: Date;
 }
 
-export interface NotificationPreferences {
-    taskDueDate: boolean;
-    newDocumentAssigned: boolean;
-    timesheetFlagged: boolean;
-}
 
-export interface CompanySettings {
-    id: number;
-    companyId: number; // Foreign Key to Company
-    timesheetRetentionDays: number;
-    theme: 'light' | 'dark';
-    notificationPreferences: NotificationPreferences;
-    country: string;
-    currency: 'USD' | 'EUR' | 'GBP';
-}
-
-export enum AuditLogAction {
-    USER_ASSIGNED = 'User Assigned',
-    USER_UNASSIGNED = 'User Unassigned',
-    TIMESHEET_APPROVED = 'Timesheet Approved',
-    TIMESHEET_REJECTED = 'Timesheet Rejected',
-    TIMESHEET_FLAGGED_FOR_REVIEW = 'Timesheet Flagged for Review',
-    TIMESHEET_FLAG_APPROVED = 'Flagged Timesheet Approved',
-    TIMESHEET_FLAG_REJECTED = 'Flagged Timesheet Rejected',
-    DOCUMENT_UPLOADED = 'Document Uploaded',
-    DOCUMENT_ACKNOWLEDGED = 'Document Acknowledged',
-    PROJECT_MANAGER_CHANGED = 'Project Manager Changed',
-    TODO_ADDED = 'Task Added',
-    TODO_COMPLETED = 'Task Completed',
-    TODO_STATUS_CHANGED = 'Task Status Changed',
-    TODO_PRIORITY_CHANGED = 'Task Priority Changed',
-    TODO_DUE_DATE_CHANGED = 'Task Due Date Changed',
-    TODO_DEPENDENCY_ADDED = 'Task Dependency Added',
-    TODO_DEPENDENCY_REMOVED = 'Task Dependency Removed',
-    SUBTASK_ADDED = 'Sub-task Added',
-    SUBTASK_COMPLETED = 'Sub-task Completed',
-    SUBTASK_DELETED = 'Sub-task Deleted',
-    SUBTASK_UPDATED = 'Sub-task Updated',
-    TODO_COMMENT_ADDED = 'Comment Added to Task',
-    TODO_REMINDER_SET = 'Task Reminder Set',
-    SAFETY_INCIDENT_REPORTED = 'Safety Incident Reported',
-    SAFETY_INCIDENT_STATUS_UPDATED = 'Safety Incident Status Updated',
-    DOCUMENT_VERSION_REVERTED = 'Document Version Reverted',
-    DOCUMENT_LINK_ADDED = 'Document Link Added',
-    DOCUMENT_LINK_REMOVED = 'Document Link Removed',
-    DOCUMENT_AI_QUERY = 'Document AI Query',
-    DAILY_LOG_ADDED = 'Daily Log Added',
-    COST_ESTIMATE_GENERATED = 'Cost Estimate Generated',
-    EQUIPMENT_ASSIGNED = 'Equipment Assigned',
-    EQUIPMENT_UNASSIGNED = 'Equipment Unassigned',
-    EQUIPMENT_STATUS_CHANGED = 'Equipment Status Changed',
-    RESOURCE_SCHEDULED = 'Resource Scheduled',
-    SAFETY_ANALYSIS_GENERATED = 'Safety Analysis Generated',
-    RFI_CREATED = 'RFI Created',
-    RFI_ANSWERED = 'RFI Answered',
-    RFI_ASSIGNEE_CHANGED = 'RFI Assignee Changed',
-    AI_PROJECT_SEARCH = 'AI Project Search',
-    OPERATIVE_REPORT_SUBMITTED = 'Operative Report Submitted',
-    INVOICE_CREATED = 'Invoice Created',
-    INVOICE_SENT = 'Invoice Sent',
-    INVOICE_PAYMENT_RECEIVED = 'Invoice Payment Received',
-    QUOTE_CREATED = 'Quote Created',
-    QUOTE_SENT = 'Quote Sent',
-    QUOTE_ACCEPTED = 'Quote Accepted',
-    QUOTE_REJECTED = 'Quote Rejected',
-    PROJECT_PHOTO_ADDED = 'Project Photo Added',
-    CLIENT_ADDED = 'Client Added',
-    COMPANY_ANNOUNCEMENT_SENT = 'Company Announcement Sent',
-    // Platform-level actions
-    TENANT_SUSPENDED = 'Tenant Suspended',
-    TENANT_ACTIVATED = 'Tenant Activated',
-    TENANT_ARCHIVED = 'Tenant Archived',
-    TENANT_INVITED = 'Tenant Invited',
-    PLATFORM_SETTINGS_UPDATED = 'Platform Settings Updated',
-    PLATFORM_ANNOUNCEMENT_SENT = 'Platform Announcement Sent',
-}
-
-export interface AuditLog {
-    id: number;
-    projectId?: number; // Foreign Key to Project
-    actorId: number; // Foreign Key to User
-    action: AuditLogAction;
-    target?: {
-        type: string;
-        id: number | string;
-        name: string;
-    };
-    timestamp: Date;
+export enum IncidentType {
+    NEAR_MISS = 'Near Miss',
+    INJURY = 'Injury',
+    PROPERTY_DAMAGE = 'Property Damage',
+    HAZARD_OBSERVATION = 'Hazard Observation',
 }
 
 export enum IncidentSeverity {
     LOW = 'Low',
     MEDIUM = 'Medium',
     HIGH = 'High',
-    CRITICAL = 'Critical'
-}
-
-export enum IncidentType {
-    NEAR_MISS = 'Near Miss',
-    HAZARD_OBSERVATION = 'Hazard Observation',
-    PROPERTY_DAMAGE = 'Property Damage',
-    INJURY = 'Injury'
+    CRITICAL = 'Critical',
 }
 
 export enum IncidentStatus {
     REPORTED = 'Reported',
     UNDER_REVIEW = 'Under Review',
-    RESOLVED = 'Resolved'
+    RESOLVED = 'Resolved',
 }
+
 
 export interface SafetyIncident {
     id: number;
-    projectId: number; // Foreign Key to Project
-    reporterId: number; // Foreign Key to User
+    projectId: number;
+    reporterId: number;
     timestamp: Date;
-    severity: IncidentSeverity;
     type: IncidentType;
+    severity: IncidentSeverity;
     description: string;
     locationOnSite: string;
-    correctiveActionTaken?: string;
     status: IncidentStatus;
-    aiSummary?: string;
 }
 
-export interface ProjectHealth {
-    score: number;
-    summary: string;
-    risks: string[];
-    positives: string[];
+export interface FinancialKPIs {
+    companyId: number;
+    currency: 'USD' | 'GBP' | 'EUR';
+    profitability: number;
+    profitabilityChange: number;
+    projectMargin: number;
+    projectMarginChange: number;
+    cashFlow: number;
+    cashFlowChange: number;
+}
+
+export interface PendingApproval {
+    id: number;
+    type: 'Timesheet' | 'Invoice' | 'New User';
+    description: string;
+    companyId: number;
+}
+
+export type AuditLogAction =
+  | 'USER_LOGIN'
+  | 'USER_LOGOUT'
+  | 'PROJECT_CREATED'
+  | 'PROJECT_UPDATED'
+  | 'TASK_CREATED'
+  | 'TASK_UPDATED'
+  | 'TASK_COMPLETED'
+  | 'DOCUMENT_UPLOADED'
+  | 'DOCUMENT_DELETED'
+  | 'SAFETY_INCIDENT_REPORTED'
+  | 'TIMESHEET_APPROVED'
+  | 'TIMESHEET_REJECTED'
+  | 'INVOICE_GENERATED_FROM_TIMESHEETS';
+
+
+export interface AuditLog {
+    id: number;
+    actorId: number;
+    action: AuditLogAction;
+    timestamp: Date;
+    target?: {
+        type: 'Project' | 'Task' | 'User' | 'Document';
+        id: number | string;
+        name: string;
+    };
+    projectId?: number;
 }
 
 export interface DailyLog {
     id: number;
-    projectId: number; // Foreign Key to Project
-    authorId: number; // Foreign Key to User
+    projectId: number;
     date: Date;
-    weather: 'Sunny' | 'Cloudy' | 'Rain' | 'Windy' | 'Snow';
-    temperature: number;
     notes: string;
-}
-
-export interface CostEstimate {
-    category: 'Materials' | 'Labor' | 'Equipment' | 'Permits' | 'Other';
-    item: string;
-    quantity: string;
-    unitCost: number;
-    totalCost: number;
-    justification: string;
+    userId: number;
 }
 
 export enum EquipmentStatus {
     AVAILABLE = 'Available',
     IN_USE = 'In Use',
-    MAINTENANCE = 'Maintenance'
+    MAINTENANCE = 'Maintenance',
 }
+
 
 export interface Equipment {
     id: number;
     name: string;
-    type: 'Heavy' | 'Light' | 'Vehicle';
+    type: string;
     status: EquipmentStatus;
-    companyId: number; // Foreign Key to Company
-    projectId?: number; // Foreign Key to Project
-}
-
-export interface ResourceAssignment {
-    id: number;
-    resourceId: number;
-    resourceType: 'user' | 'equipment';
-    projectId: number; // Foreign Key to Project
-    startDate: Date;
-    endDate: Date;
-}
-
-export enum RFIStatus {
-    OPEN = 'Open',
-    ANSWERED = 'Answered',
-    CLOSED = 'Closed'
-}
-
-export interface RFI {
-    id: number;
-    projectId: number; // Foreign Key to Project
-    subject: string;
-    question: string;
-    status: RFIStatus;
-    creatorId: number; // Foreign Key to User
-    assigneeId?: number; // Foreign Key to User
-    createdAt: Date;
-    answer?: string;
-    answeredAt?: Date;
-}
-
-export interface AISearchResult {
-    summary: string;
-    sources: {
-        documentId: number;
-        snippet: string;
-    }[];
+    companyId: number;
+    projectId?: number;
 }
 
 export interface OperativeReport {
-  id: number;
-  userId: number; // Foreign Key to User
-  projectId: number; // Foreign Key to Project
-  date: Date;
-  notes: string;
-  photoUrl?: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+    id: number;
+    projectId: number;
+    userId: number;
+    notes: string;
+    photoUrl?: string;
+    timestamp: Date;
 }
 
+export interface WeatherForecast {
+    temperature: number;
+    condition: string;
+    icon: string; // SVG path data
+}
+
+export interface Announcement {
+    id: number;
+    senderId: number;
+    scope: 'company' | 'platform' | 'project';
+    companyId?: number;
+    projectId?: number;
+    title: string;
+    content: string;
+    createdAt: Date;
+}
+
+export interface ChatMessage {
+    id: number;
+    conversationId: number;
+    senderId: number;
+    content: string;
+    timestamp: Date;
+    isRead: boolean;
+}
+
+export interface Conversation {
+    id: number;
+    participants: number[];
+    messages: ChatMessage[];
+    lastMessage: ChatMessage | null;
+}
+
+export enum ProjectRole {
+  PROJECT_MANAGER = 'Project Manager',
+  SITE_SUPERVISOR = 'Site Supervisor',
+  LEAD_ENGINEER = 'Lead Engineer',
+  WORKER = 'Worker',
+}
+
+export interface ProjectAssignment {
+  userId: number;
+  projectId: number;
+  projectRole: ProjectRole;
+}
+
+
+// --- Principal Admin Types ---
+export interface SystemHealth {
+    uptime: string;
+    apiHealth: { status: string, errorRate: number, throughput: number };
+    databaseHealth: { status: string, latency: number };
+    storageHealth: { status: string, usedGB: number, totalGB: number };
+}
+export interface UsageMetric {
+    companyId: number;
+    apiCalls: number;
+    storageUsed: number;
+    activeUsers: number;
+}
+export interface PlatformSettings {
+    mfaRequired: boolean;
+    logRetentionDays: number;
+    newTenantOnboardingWorkflow: 'manual' | 'auto';
+    defaultStorageQuotaGB: number;
+}
+
+// --- Financial Types ---
 export interface Client {
-    id: number;
-    name: string;
-    companyId: number; // Foreign Key to Company
-    contactEmail: string;
-    contactPhone: string;
-    address: string;
-    createdAt: Date;
-}
-
-export enum QuoteStatus {
-    DRAFT = 'Draft',
-    SENT = 'Sent',
-    ACCEPTED = 'Accepted',
-    REJECTED = 'Rejected',
-}
-
-export interface QuoteItem {
-    description: string;
-    quantity: number;
-    unitPrice: number;
-    total: number;
-}
-
-export interface Quote {
-    id: number;
-    projectId: number; // Foreign Key to Project
-    clientId: number; // Foreign Key to Client
-    status: QuoteStatus;
-    items: QuoteItem[];
-    total: number;
-    createdAt: Date;
-    validUntil: Date;
+  id: number;
+  companyId: number;
+  name: string;
+  contactEmail: string;
+  contactPhone: string;
+  createdAt: Date;
 }
 
 export enum InvoiceStatus {
@@ -519,47 +499,82 @@ export enum InvoiceStatus {
     VOID = 'Void',
 }
 
-export interface InvoiceItem {
+export interface InvoiceLineItem {
+    id: string; // temp id for UI
     description: string;
     quantity: number;
-    unitPrice: number;
+    rate: number;
     total: number;
 }
+
 
 export interface Invoice {
     id: number;
-    projectId: number; // Foreign Key to Project
-    clientId: number; // Foreign Key to Client
+    companyId: number;
+    clientId: number;
+    projectId: number;
     status: InvoiceStatus;
-    items: InvoiceItem[];
-    subtotal: number;
-    tax: number;
     total: number;
-    amountPaid: number;
     amountDue: number;
     issuedAt: Date;
     dueAt: Date;
+    items: InvoiceLineItem[];
 }
 
-export enum ToolStatus {
-    ACTIVE = 'Active',
-    MAINTENANCE = 'Maintenance',
-    COMING_SOON = 'Coming Soon',
-    NEW = 'New',
-    DEV_PHASE = 'Development Phase'
+export enum QuoteStatus {
+    DRAFT = 'Draft',
+    SENT = 'Sent',
+    ACCEPTED = 'Accepted',
+    REJECTED = 'Rejected',
 }
 
-export interface Tool {
-    id: string;
-    name: string;
-    description: string;
-    icon: string; // SVG path
-    status: ToolStatus;
-    tags: ('AI' | 'Finance' | 'HR' | 'Project' | 'Document' | 'Safety')[];
-    usage: number; // 0-100
-    requiredPermission?: Permission; // NEW: The permission required to see/use this tool
+export interface Quote {
+    id: number;
+    companyId: number;
+    clientId: number;
+    projectId: number;
+    status: QuoteStatus;
+    total: number;
+    validUntil: Date;
 }
 
+export enum UserStatus {
+  ON_SITE = 'On Site',
+  ON_BREAK = 'On Break',
+  OFF_SITE = 'Off Site'
+}
+
+export interface ResourceAssignment {
+    id: number;
+    companyId: number;
+    projectId: number;
+    resourceId: number;
+    resourceType: 'user' | 'equipment';
+    startDate: Date;
+    endDate: Date;
+}
+
+// --- Settings Types ---
+export interface NotificationPreferences {
+    projectUpdates: boolean;
+    timeReminders: boolean;
+    photoRequirements: boolean;
+}
+
+export interface LocationPreferences {
+    gpsAccuracy: 'standard' | 'high';
+    backgroundTracking: boolean;
+    locationHistoryDays: 30 | 60 | 90;
+}
+
+export interface CompanySettings {
+    companyId: number;
+    theme: 'light' | 'dark';
+    notificationPreferences: NotificationPreferences;
+    locationPreferences: LocationPreferences;
+}
+
+// --- AI Related Types ---
 export interface Grant {
     id: string;
     name: string;
@@ -570,10 +585,9 @@ export interface Grant {
 }
 
 export interface RiskAnalysis {
-    overallScore: number; // 0-100
     summary: string;
     identifiedRisks: {
-        severity: 'High' | 'Medium' | 'Low';
+        severity: 'Low' | 'Medium' | 'High';
         description: string;
         recommendation: string;
     }[];
@@ -585,80 +599,54 @@ export interface BidPackage {
     summary: string;
 }
 
-export interface SystemHealth {
-    uptime: string;
-    apiHealth: {
-        throughput: number; // requests per minute
-        errorRate: number; // percentage
-    };
-    databaseHealth: {
-        latency: number; // ms
-        connections: number;
-    };
-    storageHealth: {
-        totalUsageGB: number;
-        status: 'Operational' | 'Degraded';
-    };
-}
-
-export interface UsageMetric {
-    companyId: number;
-    period: string; // e.g., '2023-10'
-    activeUsers: number;
-    apiCalls: number;
-    storageUsedGB: number;
-    featureAdoption: Record<string, number>; // e.g., { invoices: 80, tasks: 95 }
-}
-
-export interface FinancialKPIs {
-    companyId: number;
-    profitability: number;
-    utilizationRate: number;
-    projectMargin: number;
-    cashFlow: number;
-}
-
-export interface PendingApproval {
-    id: number;
-    type: 'Timesheet' | 'Invoice' | 'Document' | 'Tenant Signup';
-    description: string;
-    submittedBy: string;
-    projectId?: number;
-    companyId: number;
-    date: Date;
-}
-
-export interface PlatformSettings {
-    defaultDbType: 'PostgreSQL' | 'MySQL' | 'MongoDB';
-    defaultStorageQuotaGB: number;
-    mfaRequired: boolean;
-    logRetentionDays: number;
-    newTenantOnboardingWorkflow: 'auto' | 'manual';
+export interface AISearchResult {
+    summary: string;
+    sources: {
+        documentId: number;
+        snippet: string;
+    }[];
 }
 
 export interface ProjectPhoto {
     id: number;
     projectId: number;
+    uploaderId: number;
     url: string;
     caption: string;
-    uploaderId: number; // Foreign Key to User
-    createdAt: Date;
+    timestamp: Date;
 }
 
-export interface WeatherForecast {
-    temperature: number;
-    condition: 'Sunny' | 'Partly Cloudy' | 'Cloudy' | 'Rain' | 'Thunderstorm';
-    icon: string; // SVG path
+export enum ToolStatus {
+    ACTIVE = 'Active',
+    NEW = 'New',
+    MAINTENANCE = 'Under Maintenance',
+    COMING_SOON = 'Coming Soon',
+    DEV_PHASE = 'In Development',
 }
 
-export interface Announcement {
+export interface Tool {
+    id: string;
+    name: string;
+    description: string;
+    status: ToolStatus;
+    icon: string; // SVG path data
+    tags: ('AI' | 'Finance' | 'Project' | 'Strategy' | 'Safety' | 'Reporting')[];
+}
+
+// --- Project Template Types ---
+export interface TemplateTask {
+    id: string; // e.g., 'temp-168...
+    text: string;
+    priority: TodoPriority;
+    // Note: Due date could be relative, e.g., "7 days after project start", but for simplicity, we'll omit it.
+}
+
+export interface ProjectTemplate {
     id: number;
-    senderId: number; // Foreign Key to User
-    scope: 'platform' | 'company';
-    companyId?: number; // Foreign Key to Company
-    title: string;
-    content: string;
-    createdAt: Date;
+    companyId: number;
+    name: string;
+    description: string;
+    templateTasks: TemplateTask[];
+    documentCategories: DocumentCategory[];
+    safetyProtocols: string[];
 }
-
-export type View = 'dashboard' | 'users' | 'projects' | 'timesheets' | 'documents' | 'safety' | 'tools' | 'equipment' | 'settings' | 'invoices' | 'clients' | 'principal-dashboard';

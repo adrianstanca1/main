@@ -1,233 +1,247 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { User, View, Role, Project } from './types';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Login } from './components/Login';
+import { User, View, Project, Timesheet, TimesheetStatus, Permission, SafetyIncident, IncidentStatus } from './types';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Dashboard } from './components/Dashboard';
-import { useReminderService } from './hooks/useReminderService';
-import { DocumentsView } from './components/DocumentsView';
 import { ProjectDetailView } from './components/ProjectDetailView';
-import { AISearchModal } from './components/AISearchModal';
+import { DocumentsView } from './components/DocumentsView';
+import { SafetyView } from './components/SafetyView';
+import { TimesheetsView } from './components/TimesheetsView';
 import { SettingsView } from './components/SettingsView';
-import { api } from './services/mockApi';
-import { CommandPalette } from './components/CommandPalette';
-import { useCommandPalette } from './hooks/useCommandPalette';
-import { useOfflineSync } from './hooks/useOfflineSync';
-import { InvoicesView } from './components/InvoicesView';
-import { ClientsView } from './components/ClientsView';
 import { TeamView } from './components/TeamView';
 import { ToolsView } from './components/ToolsView';
+import { FinancialsView } from './components/FinancialsView';
 import { EquipmentView } from './components/EquipmentView';
-import { TimesheetsView } from './components/TimesheetsView';
+import { TimeTrackingView } from './components/TimeTrackingView';
+import { ProjectsView } from './components/ProjectsView';
+import { ChatView } from './components/ChatView';
+import { CommandPalette } from './components/CommandPalette';
+import { AISearchModal } from './components/AISearchModal';
+import { TemplatesView } from './components/TemplatesView';
+import { useCommandPalette } from './hooks/useCommandPalette';
+import { useOfflineSync } from './hooks/useOfflineSync';
+import { useReminderService } from './hooks/useReminderService';
+import { api } from './services/mockApi';
+import { hasPermission } from './services/auth';
 
-
-interface ToastMessage {
-  id: number;
-  message: string;
-  type: 'success' | 'error';
+interface Toast {
+    id: number;
+    message: string;
+    type: 'success' | 'error';
 }
 
-const Toast: React.FC<{ message: string; type: 'success' | 'error'; onDismiss: () => void }> = ({ message, type, onDismiss }) => {
-    useEffect(() => {
-        const timer = setTimeout(onDismiss, 5000);
-        return () => clearTimeout(timer);
-    }, [onDismiss]);
-
-    const baseClasses = 'p-4 rounded-md shadow-lg text-white flex items-center gap-3';
-    const typeClasses = {
-        success: 'bg-green-600',
-        error: 'bg-red-600',
-    };
-
-    const Icon = () => {
-        if (type === 'success') {
-            return (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-            );
-        }
-        return (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-        );
-    };
-
-    return (
-        <div className={`${baseClasses} ${typeClasses[type]}`}>
-            <Icon />
-            <span>{message}</span>
-            <button onClick={onDismiss} className="ml-auto -mr-2 p-1 rounded-md hover:bg-white/20 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-            </button>
-        </div>
-    );
-};
-
-
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [activeView, setActiveView] = useState<View>('dashboard');
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [isAiSearchOpen, setIsAiSearchOpen] = useState(false);
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  
-  const { isCommandPaletteOpen, setIsCommandPaletteOpen } = useCommandPalette();
-  
-  const addToast = useCallback((message: string, type: 'success' | 'error') => {
-    const id = Date.now();
-    setToasts(prev => [...prev, { id, message, type }]);
-  }, []);
+    const [user, setUser] = useState<User | null>(null);
+    const [activeView, setActiveView] = useState<View>('dashboard');
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [theme, setTheme] = useState<'light' | 'dark'>('light');
+    const [toasts, setToasts] = useState<Toast[]>([]);
+    const [isAiSearchOpen, setIsAiSearchOpen] = useState(false);
+    const [pendingTimesheetCount, setPendingTimesheetCount] = useState(0);
+    const [openIncidentCount, setOpenIncidentCount] = useState(0);
+    const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+    const [chatRecipient, setChatRecipient] = useState<User | null>(null);
 
-  const { isOnline } = useOfflineSync(addToast);
 
-  // Activate the reminder service when a user is logged in
-  useReminderService(currentUser);
+    const { isOnline } = useOfflineSync(addToast);
+    useReminderService(user);
+    const { isCommandPaletteOpen, setIsCommandPaletteOpen } = useCommandPalette();
 
-  useEffect(() => {
-    // Apply theme to the root element
-    const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
+    useEffect(() => {
+        document.documentElement.classList.toggle('dark', theme === 'dark');
+    }, [theme]);
+
+    useEffect(() => {
+        if (!user) return;
+        const intervals: number[] = [];
+
+        // Fetch pending timesheets for managers/admins
+        if (hasPermission(user, Permission.MANAGE_TIMESHEETS)) {
+            const fetchPendingCount = async () => {
+                try {
+                    let timesheets: Timesheet[];
+                    if (user.role === 'Company Admin') {
+                        timesheets = await api.getTimesheetsByCompany(user.companyId!, user.id);
+                    } else { // PM
+                        timesheets = await api.getTimesheetsForManager(user.id);
+                    }
+                    const pendingCount = timesheets.filter(ts => ts.status === TimesheetStatus.PENDING).length;
+                    setPendingTimesheetCount(pendingCount);
+                } catch (error) {
+                    console.error("Failed to fetch pending timesheet count", error);
+                }
+            };
+            fetchPendingCount();
+            intervals.push(window.setInterval(fetchPendingCount, 60000));
+        } else {
+            setPendingTimesheetCount(0);
+        }
+
+        // Fetch open safety incidents for relevant staff
+        if (hasPermission(user, Permission.MANAGE_SAFETY_REPORTS)) {
+            const fetchOpenIncidents = async () => {
+                try {
+                   const incidents = await api.getSafetyIncidentsByCompany(user.companyId!);
+                   const openCount = incidents.filter(i => i.status !== IncidentStatus.RESOLVED).length;
+                   setOpenIncidentCount(openCount);
+                } catch (e) {
+                   console.error("failed to fetch open incidents", e)
+                }
+           }
+           fetchOpenIncidents();
+           intervals.push(window.setInterval(fetchOpenIncidents, 60000));
+        } else {
+            setOpenIncidentCount(0);
+        }
+        
+        // Fetch unread message count
+        if (hasPermission(user, Permission.SEND_DIRECT_MESSAGE)) {
+            const fetchUnreadCount = async () => {
+                try {
+                    const conversations = await api.getConversationsForUser(user.id);
+                    let count = 0;
+                    for (const convo of conversations) {
+                        if (convo.lastMessage && convo.lastMessage.senderId !== user.id && !convo.lastMessage.isRead) {
+                            count++;
+                        }
+                    }
+                    setUnreadMessageCount(count);
+                } catch (e) {
+                    console.error("Failed to fetch unread message count", e);
+                }
+            };
+            fetchUnreadCount();
+            intervals.push(window.setInterval(fetchUnreadCount, 15000)); // Check for new messages more frequently
+        } else {
+            setUnreadMessageCount(0);
+        }
+
+
+        return () => {
+            intervals.forEach(clearInterval);
+        };
+    }, [user]);
+
+    function addToast(message: string, type: 'success' | 'error' = 'success') {
+        const id = Date.now();
+        setToasts(prev => [...prev, { id, message, type }]);
+        setTimeout(() => {
+            setToasts(currentToasts => currentToasts.filter(t => t.id !== id));
+        }, 4000);
     }
-  }, [theme]);
 
-  const removeToast = (id: number) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  };
-  
-  const handleLogin = (user: User) => {
-    setCurrentUser(user);
-    setActiveView('dashboard'); // Reset to dashboard on login
-    setSelectedProject(null); // Reset project view on login
-    addToast(`Welcome back, ${user.name}!`, 'success');
+    const handleLogin = (loggedInUser: User) => {
+        setUser(loggedInUser);
+        if (loggedInUser.role === 'Principal Admin') {
+            setActiveView('principal-dashboard');
+        } else {
+            setActiveView('dashboard');
+        }
+    };
+
+    const handleLogout = () => {
+        setUser(null);
+    };
+
+    const handleSelectProject = (project: Project) => {
+        setSelectedProject(project);
+        setActiveView('projects'); // This will trigger the detail view render
+    };
     
-    // Fetch user/company settings to get the theme, only if it's a company user
-    if (user.companyId) {
-        api.getCompanySettings(user.companyId).then(settings => {
-            if (settings?.theme) {
-                setTheme(settings.theme);
-            }
-        });
+    const handleStartChat = (recipient: User) => {
+        setChatRecipient(recipient);
+        setActiveView('chat');
+    };
+
+    const renderView = () => {
+        if (selectedProject && activeView === 'projects') {
+            return <ProjectDetailView project={selectedProject} user={user!} onBack={() => setSelectedProject(null)} addToast={addToast} isOnline={isOnline} onStartChat={handleStartChat} />;
+        }
+
+        switch (activeView) {
+            case 'dashboard':
+            case 'principal-dashboard':
+                return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
+            case 'projects':
+                return <ProjectsView user={user!} addToast={addToast} onSelectProject={handleSelectProject} />;
+            case 'documents':
+                return <DocumentsView user={user!} addToast={addToast} />;
+            case 'safety':
+                 return <SafetyView user={user!} addToast={addToast} />;
+            case 'timesheets':
+                return <TimesheetsView user={user!} addToast={addToast} />;
+            case 'time':
+                return <TimeTrackingView user={user!} addToast={addToast} setActiveView={setActiveView} />;
+            case 'settings':
+                return <SettingsView user={user!} addToast={addToast} theme={theme} setTheme={setTheme} />;
+            case 'users':
+                return <TeamView user={user!} addToast={addToast} onStartChat={handleStartChat} />;
+            case 'chat':
+                return <ChatView user={user!} addToast={addToast} initialRecipient={chatRecipient} />;
+            case 'tools':
+                return <ToolsView user={user!} addToast={addToast} setActiveView={setActiveView} />;
+            case 'financials':
+                 return <FinancialsView user={user!} addToast={addToast} />;
+            case 'equipment':
+                return <EquipmentView user={user!} addToast={addToast} />;
+            case 'templates':
+                return <TemplatesView user={user!} addToast={addToast} />;
+            default:
+                return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
+        }
+    };
+
+    if (!user) {
+        return <Login onLogin={handleLogin} />;
     }
-  };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-  };
-  
-  const handleSelectProject = (project: Project | null) => {
-    setSelectedProject(project);
-    if(project === null) {
-        // When going back from a project, ensure the active view is relevant
-        setActiveView('projects');
-    }
-  }
-
-  const renderActiveView = () => {
-    if (!currentUser) return null;
-    
-    // Principal Admin has a dedicated dashboard and doesn't see project details
-    if (currentUser.role === Role.PRINCIPAL_ADMIN) {
-        return <Dashboard user={currentUser} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
-    }
-
-    if (selectedProject) {
-        return <ProjectDetailView project={selectedProject} user={currentUser} onBack={() => handleSelectProject(null)} addToast={addToast} isOnline={isOnline} />;
-    }
-
-    switch(activeView) {
-        case 'documents':
-            return <DocumentsView user={currentUser} addToast={addToast} />;
-        case 'timesheets':
-            return <TimesheetsView user={currentUser} addToast={addToast} />;
-        case 'invoices':
-            return <InvoicesView user={currentUser} addToast={addToast} />;
-        case 'clients':
-            return <ClientsView user={currentUser} addToast={addToast} />;
-        case 'users':
-            return <TeamView user={currentUser} addToast={addToast} />;
-        case 'settings':
-            return <SettingsView user={currentUser} addToast={addToast} theme={theme} setTheme={setTheme} />;
-        case 'tools':
-            return <ToolsView user={currentUser} addToast={addToast} setActiveView={setActiveView} />;
-        case 'equipment':
-            return <EquipmentView user={currentUser} addToast={addToast} />;
-        case 'projects': // The dashboard can show projects, so we group them.
-        case 'dashboard':
-            return <Dashboard user={currentUser} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
-        default:
-             return <Dashboard user={currentUser} addToast={addToast} activeView={'dashboard'} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
-    }
-  }
-
-
-  if (!currentUser) {
     return (
-        <>
-            <Login onLogin={handleLogin} />
-            <div className="fixed top-4 right-4 z-50 space-y-2">
+        <div className={`flex h-screen bg-slate-100 font-sans ${theme}`}>
+            <Sidebar 
+                user={user} 
+                activeView={activeView} 
+                setActiveView={setActiveView} 
+                onLogout={handleLogout} 
+                pendingTimesheetCount={pendingTimesheetCount}
+                openIncidentCount={openIncidentCount}
+                unreadMessageCount={unreadMessageCount}
+            />
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <Header user={user} onLogout={handleLogout} onSearchClick={() => setIsAiSearchOpen(true)} onCommandPaletteClick={() => setIsCommandPaletteOpen(true)} />
+                 {!isOnline && (
+                    <div className="bg-yellow-500 text-center text-white p-2 font-semibold flex-shrink-0">
+                        You are currently offline. Changes are being saved locally.
+                    </div>
+                )}
+                <main className="flex-1 overflow-y-auto p-6 lg:p-8">
+                    {renderView()}
+                </main>
+            </div>
+             {isCommandPaletteOpen && (
+                <CommandPalette
+                    user={user}
+                    onClose={() => setIsCommandPaletteOpen(false)}
+                    setActiveView={setActiveView}
+                />
+            )}
+            {isAiSearchOpen && (
+                <AISearchModal
+                    user={user}
+                    currentProject={selectedProject}
+                    onClose={() => setIsAiSearchOpen(false)}
+                    addToast={addToast}
+                />
+            )}
+            <div className="fixed bottom-4 right-4 z-[100] space-y-2">
                 {toasts.map(toast => (
-                    <Toast key={toast.id} {...toast} onDismiss={() => removeToast(toast.id)} />
+                    <div key={toast.id} className={`px-4 py-2 rounded-md shadow-lg text-white animate-toast-in ${toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'}`}>
+                        {toast.message}
+                    </div>
                 ))}
             </div>
-        </>
+        </div>
     );
-  }
-
-  return (
-    <>
-        {!isOnline && (
-            <div className="bg-yellow-500 text-center text-sm text-white p-1 font-semibold fixed top-0 w-full z-[100]">
-                You are currently offline. Changes will be synced when you're back online.
-            </div>
-        )}
-        <div className={`flex h-screen bg-slate-50 ${!isOnline ? 'pt-7' : ''}`}>
-          <Sidebar user={currentUser} activeView={activeView} setActiveView={setActiveView} />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header 
-                user={currentUser} 
-                onLogout={handleLogout}
-                onSearchClick={() => setIsAiSearchOpen(true)}
-                onCommandPaletteClick={() => setIsCommandPaletteOpen(true)}
-             />
-            <main className="flex-1 p-6 lg:p-8 overflow-y-auto">
-              {renderActiveView()}
-            </main>
-          </div>
-        </div>
-        {isAiSearchOpen && (
-            <AISearchModal 
-                user={currentUser}
-                currentProject={selectedProject}
-                onClose={() => setIsAiSearchOpen(false)}
-                addToast={addToast}
-            />
-        )}
-        {isCommandPaletteOpen && (
-            <CommandPalette
-                user={currentUser}
-                onClose={() => setIsCommandPaletteOpen(false)}
-                setActiveView={setActiveView}
-                onSelectProject={(project) => {
-                    handleSelectProject(project);
-                    setIsCommandPaletteOpen(false);
-                }}
-            />
-        )}
-        <div className="fixed top-4 right-4 z-50 space-y-2 w-full max-w-sm">
-            {toasts.map(toast => (
-                <Toast key={toast.id} {...toast} onDismiss={() => removeToast(toast.id)} />
-            ))}
-        </div>
-    </>
-  );
 };
 
 export default App;

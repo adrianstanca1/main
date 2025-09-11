@@ -40,7 +40,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
       
       const superAdmin = (await api.getUsersByCompany(0)).find(u => u.role === Role.PRINCIPAL_ADMIN) || null; // A bit of a hack for mock API
       if (!superAdmin) {
-          const allSystemUsers = await api.getUsersByCompany(undefined as any);
+          const allSystemUsers = await api.getUsersByCompany();
           setPrincipalAdmin(allSystemUsers.find(u => u.role === Role.PRINCIPAL_ADMIN) || null);
       } else {
         setPrincipalAdmin(superAdmin);
