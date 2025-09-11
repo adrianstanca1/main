@@ -1,70 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Project, Todo, Role, Permission, TodoStatus, SubTask, Comment, ProjectAssignment, ProjectRole } from '../types';
+import { User, Project, Todo, Role, Permission, TodoStatus, TodoPriority, Document, SafetyIncident, Equipment } from '../types';
 import { api } from '../services/mockApi';
-import { hasPermission } from '../services/auth';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { KanbanBoard } from './KanbanBoard';
-import { queueAction } from '../hooks/useOfflineSync';
+import { hasPermission } from '../services/auth';
 import { MapView, MapMarker } from './MapView';
+import { queueAction } from '../hooks/useOfflineSync';
 
-// --- Task Detail Modal (re-used from Dashboard) ---
-const TaskDetailModal: React.FC<{
-    task: Todo;
-    user: User;
-    projectName: string;
-    personnel: User[];
-    onClose: () => void;
-    onAddComment: (todoId: number | string, text: string) => void;
-    onUpdateTask: (todoId: number | string, updates: Partial<Todo>) => void;
-    onReminderUpdate: () => void;
-    addToast: (message: string, type: 'success' | 'error') => void;
-}> = ({ task, user, projectName, personnel, onClose, onAddComment, onUpdateTask, onReminderUpdate, addToast }) => {
-    // This modal is a simplified version for project context. A real app might share this component.
-    const [newComment, setNewComment] = useState('');
-    const userMap = useMemo(() => new Map(personnel.map(p => [p.id, p])), [personnel]);
-
-    const handleCommentSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newComment.trim()) return;
-        onAddComment(task.id, newComment);
-        setNewComment('');
-    };
-    
-    return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={onClose}>
-            <Card className="w-full max-w-lg h-auto max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <h3 className="text-xl font-bold">{task.text}</h3>
-                <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
-                
-                <div className="flex-grow overflow-y-auto pr-2 space-y-6">
-                    <div>
-                        <h4 className="font-semibold text-slate-700 mb-2">Comments</h4>
-                        <div className="space-y-3">
-                            {task.comments?.map(comment => (
-                                <div key={comment.id} className="flex flex-col items-start">
-                                    <div className="flex items-center gap-2 text-sm mb-1">
-                                        <span className="font-semibold">{userMap.get(comment.creatorId)?.name || '...'}</span>
-                                        <span className="text-xs text-slate-400">{new Date(comment.createdAt).toLocaleString()}</span>
-                                    </div>
-                                    <p className="bg-slate-100 p-2 rounded-lg text-slate-800">{comment.text}</p>
-                                </div>
-                            ))}
-                             {(!task.comments || task.comments.length === 0) && <p className="text-sm text-slate-400">No comments yet.</p>}
-                        </div>
-                    </div>
-                </div>
-
-                <form onSubmit={handleCommentSubmit} className="mt-4 pt-4 border-t flex gap-2">
-                    <input type="text" value={newComment} onChange={e => setNewComment(e.target.value)} placeholder="Add a comment..." className="w-full p-2 border rounded-md" />
-                    <Button type="submit" disabled={!newComment.trim()}>Send</Button>
-                </form>
-            </Card>
-        </div>
-    );
-};
-
-// --- Main Project Detail View ---
 interface ProjectDetailViewProps {
   project: Project;
   user: User;
@@ -77,248 +20,152 @@ interface ProjectDetailViewProps {
 export const ProjectDetailView: React.FC<ProjectDetailViewProps> = ({ project, user, onBack, addToast, isOnline, onStartChat }) => {
     const [todos, setTodos] = useState<Todo[]>([]);
     const [personnel, setPersonnel] = useState<User[]>([]);
-    const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedTask, setSelectedTask] = useState<Todo | null>(null);
 
-    const canManageTasks = hasPermission(user, Permission.MANAGE_TASKS);
-
+    const canManageTasks = useMemo(() => hasPermission(user, Permission.MANAGE_TASKS), [user]);
+    
     const fetchData = useCallback(async () => {
         try {
-            const [projectTodos, companyUsers, projectAssignments] = await Promise.all([
+            const [todosData, assignmentsData] = await Promise.all([
                 api.getTodosByProject(project.id),
-                api.getUsersByCompany(user.companyId),
-                api.getProjectAssignmentsByCompany(user.companyId),
+                api.getProjectAssignmentsByCompany(project.companyId) // simplified
             ]);
-            setTodos(projectTodos);
-            setPersonnel(companyUsers);
-            setAssignments(projectAssignments.filter(a => a.projectId === project.id));
+
+            const projectAssignments = assignmentsData.filter(a => a.projectId === project.id);
+            const userIds = projectAssignments.map(a => a.userId);
+            const allCompanyUsers = await api.getUsersByCompany(project.companyId);
+            const projectUsers = allCompanyUsers.filter(u => userIds.includes(u.id));
+
+            setTodos(todosData.sort((a,b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+            setPersonnel(projectUsers);
         } catch (error) {
-            addToast('Failed to load project details.', 'error');
+            addToast("Failed to load project details.", "error");
         } finally {
             setLoading(false);
         }
-    }, [project.id, user.companyId, addToast]);
-    
+    }, [project.id, project.companyId, addToast]);
+
     useEffect(() => {
         setLoading(true);
         fetchData();
-        window.addEventListener('datachanged', fetchData);
-        return () => window.removeEventListener('datachanged', fetchData);
+        
+        const handleDataChange = () => fetchData();
+        window.addEventListener('datachanged', handleDataChange);
+        return () => window.removeEventListener('datachanged', handleDataChange);
     }, [fetchData]);
 
     const handleUpdateTaskStatus = async (todoId: number | string, newStatus: TodoStatus) => {
         const originalTodos = [...todos];
         const updatedTodos = todos.map(t => t.id === todoId ? { ...t, status: newStatus } : t);
         setTodos(updatedTodos);
-
+        
         if (isOnline) {
             try {
                 await api.updateTodo(todoId, { status: newStatus }, user.id);
+                addToast('Task status updated.', 'success');
             } catch (error) {
+                setTodos(originalTodos);
                 addToast('Failed to update task status.', 'error');
-                setTodos(originalTodos); // Revert on failure
             }
         } else {
-            addToast('Task update queued offline.', 'success');
-            const task = todos.find(t => t.id === todoId);
-            if(task) {
-                 queueAction({
+            const task = updatedTodos.find(t => t.id === todoId);
+            if (task) {
+                queueAction({
                     type: 'UPDATE_TODO',
                     payload: { id: todoId, updates: { status: newStatus }, actorId: user.id },
                     projectId: task.projectId
                 });
+                addToast('Task update queued.', 'success');
             }
         }
     };
     
-    const onAddTask = async (taskData: { text: string; priority: any; status: TodoStatus; }) => {
+    const handleAddTask = async (taskData: { text: string; priority: TodoPriority; status: TodoStatus }) => {
         const fullTaskData = {
             ...taskData,
             projectId: project.id,
             creatorId: user.id,
         };
-        const newTodo = await api.addTodo(fullTaskData, user.id);
-        setTodos(prev => [newTodo, ...prev]);
-        addToast("Task added successfully!", "success");
-    }
-
-     const handleUpdateTask = async (todoId: number | string, updates: Partial<Todo>) => {
-        const originalTodos = allTodos;
-        const updatedTask = { ...allTodos.find(t => t.id === todoId)!, ...updates };
-        setTodos(prev => prev.map(t => (t.id === todoId ? updatedTask : t)));
-        if (selectedTask?.id === todoId) {
-            setSelectedTask(updatedTask);
-        }
         
         if (isOnline) {
-            try {
-                await api.updateTodo(todoId, updates, user.id);
-                addToast('Task updated.', 'success');
-                await fetchData();
-            } catch (error) {
-                setTodos(originalTodos); 
-                addToast('Failed to update task.', 'error');
-            }
+             const newTodo = await api.addTodo(fullTaskData, user.id);
+             setTodos(prev => [...prev, newTodo]);
         } else {
-             queueAction({
-                type: 'UPDATE_TODO',
-                payload: { id: todoId, updates, actorId: user.id },
-                projectId: updatedTask.projectId,
-            });
-            addToast('Task update queued.', 'success');
-        }
-    };
-    
-    const handleAddComment = async (todoId: number | string, text: string) => {
-        const optimisticComment: Comment = {
-            id: `offline_comment_${Date.now()}`,
-            creatorId: user.id,
-            text,
-            createdAt: new Date(),
-            isOffline: !isOnline,
-        };
-
-        setTodos(prevTodos => prevTodos.map(t => {
-            if (t.id === todoId) {
-                return { ...t, comments: [...(t.comments || []), optimisticComment] };
-            }
-            return t;
-        }));
-        if(selectedTask?.id === todoId) {
-             setSelectedTask(prev => prev ? { ...prev, comments: [...(prev.comments || []), optimisticComment] } : null);
-        }
-
-        if (isOnline) {
-            await api.addComment(todoId, text, user.id);
-            await fetchData();
-        } else {
-             queueAction({
-                type: 'ADD_COMMENT',
-                payload: { todoId, text, creatorId: user.id },
+            const offlineTodo: Todo = {
+                ...fullTaskData,
+                id: `offline_${Date.now()}`,
+                createdAt: new Date(),
+                isOffline: true,
+            };
+            setTodos(prev => [...prev, offlineTodo]);
+            queueAction({
+                type: 'ADD_TODO',
+                payload: { taskData: fullTaskData, tempId: offlineTodo.id },
                 projectId: project.id,
             });
+            addToast('Task created offline.', 'success');
         }
     };
 
-    const projectTeam = useMemo(() => {
-        return assignments.map(a => {
-            const member = personnel.find(p => p.id === a.userId);
-            return member ? { ...member, projectRole: a.projectRole } : null;
-        }).filter(Boolean) as (User & { projectRole: ProjectRole })[];
-    }, [assignments, personnel]);
+    const mapMarkers: MapMarker[] = useMemo(() => {
+        if (!project.location?.lat) return [];
+        return [{
+            lat: project.location.lat,
+            lng: project.location.lng,
+            radius: project.geofenceRadius,
+            popupContent: project.name,
+        }];
+    }, [project]);
 
-    const mapMarkers: MapMarker[] = useMemo(() => ([{
-        lat: project.location.lat,
-        lng: project.location.lng,
-        radius: project.geofenceRadius,
-        popupContent: project.name,
-    }]), [project]);
-    
-    const allTodos = todos; // For Kanban board context
-    
-    const statusStyles: Record<Project['status'], string> = {
-        'Active': 'bg-green-100 text-green-800',
-        'On Hold': 'bg-yellow-100 text-yellow-800',
-        'Completed': 'bg-slate-200 text-slate-800'
-    };
-
-    const formatCurrency = (amount: number) => {
-        return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(amount);
-    };
-    
-    const budgetProgress = project.budget > 0 ? (project.actualCost / project.budget) * 100 : 0;
-
-
-    if (loading) return <Card>Loading project details...</Card>;
+    if (loading) {
+        return <Card>Loading project details...</Card>;
+    }
 
     return (
         <div className="space-y-6">
-            {selectedTask && (
-                <TaskDetailModal 
-                    task={selectedTask} 
-                    user={user} 
-                    projectName={project.name} 
-                    personnel={personnel}
-                    onClose={() => setSelectedTask(null)}
-                    onAddComment={handleAddComment}
-                    onUpdateTask={handleUpdateTask}
-                    onReminderUpdate={fetchData}
-                    addToast={addToast}
-                />
-            )}
-            <Button onClick={onBack} variant="secondary">&larr; Back to All Projects</Button>
+            <button onClick={onBack} className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-900">
+                &larr; Back to all projects
+            </button>
+            <div className="flex justify-between items-start">
+                <div>
+                    <h2 className="text-4xl font-bold text-slate-800">{project.name}</h2>
+                    <p className="text-slate-500">{project.location.address}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span className={`px-3 py-1 text-sm font-semibold rounded-full ${project.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>{project.status}</span>
+                </div>
+            </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2">
-                    <Card>
-                        <div className="flex justify-between items-start">
-                             <div>
-                                <h2 className="text-3xl font-bold text-slate-800">{project.name}</h2>
-                                <p className="text-slate-500">{project.location.address}</p>
-                            </div>
-                             <span className={`px-3 py-1 text-sm font-semibold rounded-full flex-shrink-0 ${statusStyles[project.status]}`}>
-                                {project.status}
-                            </span>
-                        </div>
-                        <div className="mt-4 pt-4 border-t">
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
+                <Card className="lg:col-span-2">
+                    <h3 className="font-semibold text-lg mb-4">Project Location</h3>
+                    <MapView markers={mapMarkers} height="h-64" />
+                </Card>
+                 <Card className="lg:col-span-1">
+                    <h3 className="font-semibold text-lg mb-4">Project Team</h3>
+                    <div className="space-y-3">
+                        {personnel.map(p => (
+                            <div key={p.id} className="flex justify-between items-center">
                                 <div>
-                                    <p className="text-slate-500">Start Date</p>
-                                    <p className="font-semibold text-slate-800 text-base">{new Date(project.startDate).toLocaleDateString()}</p>
+                                    <p className="font-medium">{p.name}</p>
+                                    <p className="text-xs text-slate-500">{p.role}</p>
                                 </div>
-                                 <div>
-                                    <p className="text-slate-500">Project Type</p>
-                                    <p className="font-semibold text-slate-800 text-base">{project.projectType}</p>
-                                </div>
-                                <div className="col-span-2 md:col-span-1">
-                                    <p className="text-slate-500">Work Class</p>
-                                    <p className="font-semibold text-slate-800 text-base">{project.workClassification}</p>
-                                </div>
-                                <div className="col-span-2 md:col-span-3">
-                                     <p className="text-slate-500">Budget vs. Actual</p>
-                                    <p className="font-semibold text-slate-800 text-base">
-                                        {formatCurrency(project.actualCost)} / {formatCurrency(project.budget)}
-                                    </p>
-                                    <div className="w-full bg-slate-200 rounded-full h-2.5 mt-1">
-                                        <div 
-                                            className={`h-2.5 rounded-full ${budgetProgress > 100 ? 'bg-red-500' : 'bg-green-500'}`} 
-                                            style={{ width: `${Math.min(budgetProgress, 100)}%` }}
-                                            title={`${budgetProgress.toFixed(1)}% of budget spent`}
-                                        ></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-                <Card>
-                    <h3 className="font-semibold mb-2">Project Team</h3>
-                    <div className="space-y-2 max-h-56 overflow-y-auto">
-                        {projectTeam.map(member => (
-                            <div key={member.id} className="flex justify-between items-center text-sm p-2 rounded-md hover:bg-slate-50">
-                                <div>
-                                    <p className="font-medium">{member.name}</p>
-                                    <p className="text-xs text-slate-500">{member.projectRole}</p>
-                                </div>
-                                <Button size="sm" variant="ghost" onClick={() => onStartChat(member)}>Chat</Button>
+                                <Button size="sm" variant="ghost" onClick={() => onStartChat(p)} disabled={p.id === user.id}>Chat</Button>
                             </div>
                         ))}
                     </div>
                 </Card>
             </div>
-            <Card>
-                <MapView markers={mapMarkers} height="h-64" />
-            </Card>
-
+            
             <div>
                 <h3 className="text-2xl font-bold text-slate-800 mb-4">Task Board</h3>
                 <KanbanBoard
                     todos={todos}
-                    allTodos={allTodos}
+                    allTodos={todos}
                     onUpdateTaskStatus={handleUpdateTaskStatus}
-                    onSelectTask={setSelectedTask}
-                    onAddTask={onAddTask}
+                    onSelectTask={(task) => setSelectedTask(task)}
+                    onAddTask={handleAddTask}
                     canManageTasks={canManageTasks}
                     user={user}
                     addToast={addToast}

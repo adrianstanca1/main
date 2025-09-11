@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, SafetyIncident, Project, IncidentSeverity, IncidentType, IncidentStatus, Permission, Role } from '../types';
 import { api } from '../services/mockApi';

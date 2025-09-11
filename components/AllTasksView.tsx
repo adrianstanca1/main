@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { User, Todo, Project, Permission, TodoStatus, TodoPriority, Comment, SubTask } from '../types';
 import { api } from '../services/mockApi';
@@ -208,7 +207,7 @@ const TaskDetailModal: React.FC<{
                 <p className="text-sm text-slate-500 mb-4">in project: {projectName}</p>
                 
                 <div className="flex-grow overflow-y-auto pr-2 space-y-6">
-                    {/* ... (rest of the modal content is the same) ... */}
+                    {/* Task Details Section */}
                     <div className="grid grid-cols-2 gap-x-6 gap-y-4 pb-4 border-b">
                          {isEditing && (
                              <>
@@ -271,9 +270,10 @@ const TaskDetailModal: React.FC<{
                         </div>
                     </div>
 
+                    {/* Sub-tasks */}
                     <div>
                         <h4 className="font-semibold text-slate-700 mb-2">Sub-tasks</h4>
-                        {editableTask.subTasks && editableTask.subTasks.length > 0 && (
+                         {editableTask.subTasks && editableTask.subTasks.length > 0 && (
                             <div className="mb-2">
                                 <div className="flex justify-between text-xs font-medium text-slate-500 mb-1">
                                     <span>Progress</span>
@@ -317,6 +317,7 @@ const TaskDetailModal: React.FC<{
                          {isEditing && <Button size="sm" variant="secondary" onClick={handleAddSubtask} className="mt-2">+ Add Sub-task</Button>}
                     </div>
                     
+                    {/* Comments */}
                     <div>
                         <h4 className="font-semibold text-slate-700 mb-2">Comments</h4>
                         <div className="space-y-3">

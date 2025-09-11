@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+// FIX: Corrected import path
 import { Todo, TodoStatus, SubTask, User, TodoPriority } from '../types';
 import { TaskCard } from './TaskCard';
 import { Button } from './ui/Button';
@@ -52,9 +53,9 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTo
         const todoIdStr = e.dataTransfer.getData('todoId');
         // Handle both string and number IDs for offline compatibility
         const todoId = isNaN(parseInt(todoIdStr, 10)) ? todoIdStr : parseInt(todoIdStr, 10);
-        const originalStatus = allTodos.find(t => t.id.toString() === todoIdStr)?.status;
+        const originalTask = allTodos.find(t => t.id.toString() === todoIdStr);
 
-        if (todoId && originalStatus !== status) {
+        if (todoId && originalTask && originalTask.status !== status) {
             onUpdateTaskStatus(todoId, status);
         }
     };
@@ -92,10 +93,9 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpd
     const doneTasks = todos
         .filter(t => t.status === TodoStatus.DONE)
         .sort((a, b) => {
-            // Sort by completion date, with nulls (older tasks without the field) first.
             const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
             const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-            return dateB - dateA; // Show most recently completed first
+            return dateB - dateA;
         });
     
     return (

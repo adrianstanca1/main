@@ -15,7 +15,7 @@ const formatCurrency = (amount: number, currency: string, compact = false) => {
     }).format(amount);
 };
 
-// --- Custom Chart Components (Moved to module scope) ---
+// --- Custom Chart Components (Moved to module scope to fix React Hook error) ---
 
 const BarChart: React.FC<{
     data: MonthlyFinancials[];
@@ -234,8 +234,7 @@ const InvoiceEditor: React.FC<{
                 clientId: associatedClient.id,
                 projectId: associatedProject.id,
                 total: grandTotal,
-// FIX: Added the required 'status' property to satisfy the Invoice type.
-                status: InvoiceStatus.SENT,
+                status: InvoiceStatus.DRAFT,
                 dueAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Due in 30 days
                 items: lineItems,
             };
@@ -324,7 +323,6 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const [unbilledTimesheets, setUnbilledTimesheets] = useState<Timesheet[]>([]);
     const [loading, setLoading] = useState(true);
     
-    // State for new charts
     const [monthlyData, setMonthlyData] = useState<MonthlyFinancials[]>([]);
     const [costData, setCostData] = useState<CostBreakdown[]>([]);
 
@@ -406,7 +404,7 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
         />
     }
 
-    const renderOverview = useCallback(() => (
+    const renderOverview = () => (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <Card className="lg:col-span-3">
                 <h3 className="text-lg font-semibold mb-1">Last 6 Months Performance</h3>
@@ -461,9 +459,9 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
                 </div>
             </Card>
         </div>
-    ), [kpis, currency, unbilledByProject, projects, handleGenerateInvoice, monthlyData, costData]);
+    );
 
-    const renderInvoicesTable = useCallback(() => (
+    const renderInvoicesTable = () => (
         <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
                  <thead className="bg-slate-50">
@@ -489,9 +487,9 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
             </table>
              {invoices.length === 0 && <p className="text-center py-8 text-slate-500">No invoices found.</p>}
         </div>
-    ), [invoices, currency, findClientName]);
+    );
     
-    const renderQuotesTable = useCallback(() => (
+    const renderQuotesTable = () => (
          <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
                  <thead className="bg-slate-50">
@@ -517,9 +515,9 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
             </table>
              {quotes.length === 0 && <p className="text-center py-8 text-slate-500">No quotes found.</p>}
         </div>
-    ), [quotes, currency, findClientName]);
+    );
     
-    const renderClients = useCallback(() => (
+    const renderClients = () => (
          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {clients.map(client => (
                 <Card key={client.id}>
@@ -529,9 +527,9 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
             ))}
             {clients.length === 0 && <p className="text-center py-8 text-slate-500 col-span-full">No clients found.</p>}
         </div>
-    ), [clients]);
+    );
 
-    const renderContent = useCallback(() => {
+    const renderContent = () => {
         switch (activeTab) {
             case 'overview': return renderOverview();
             case 'invoices': return renderInvoicesTable();
@@ -539,7 +537,7 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
             case 'clients': return renderClients();
             default: return null;
         }
-    }, [activeTab, renderOverview, renderInvoicesTable, renderQuotesTable, renderClients]);
+    };
 
     return (
         <div className="space-y-6">

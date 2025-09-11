@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Login } from './components/Login';
-import { User, View, Project, Timesheet, TimesheetStatus, Permission, SafetyIncident, IncidentStatus } from './types';
+import { User, View, Project, Timesheet, TimesheetStatus, Permission, SafetyIncident, IncidentStatus, Role } from './types';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Dashboard } from './components/Dashboard';
@@ -20,6 +20,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { AISearchModal } from './components/AISearchModal';
 import { TemplatesView } from './components/TemplatesView';
 import { AllTasksView } from './components/AllTasksView';
+import { MyDayView } from './components/MyDayView';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useOfflineSync } from './hooks/useOfflineSync';
 import { useReminderService } from './hooks/useReminderService';
@@ -149,8 +150,10 @@ const App: React.FC = () => {
 
     const handleLogin = (loggedInUser: User) => {
         setUser(loggedInUser);
-        if (loggedInUser.role === 'Principal Admin') {
+        if (loggedInUser.role === Role.PRINCIPAL_ADMIN) {
             setActiveView('principal-dashboard');
+        } else if (loggedInUser.role === Role.OPERATIVE || loggedInUser.role === Role.FOREMAN) {
+            setActiveView('my-day');
         } else {
             setActiveView('dashboard');
         }
@@ -178,6 +181,8 @@ const App: React.FC = () => {
         switch (activeView) {
             case 'dashboard':
                 return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
+            case 'my-day':
+                return <MyDayView user={user!} addToast={addToast} setActiveView={setActiveView} />;
             case 'principal-dashboard':
                 return <PrincipalAdminDashboard user={user!} addToast={addToast} />;
             case 'projects':

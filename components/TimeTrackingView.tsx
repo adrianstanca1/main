@@ -171,6 +171,7 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToa
         setIsSubmitting(true);
         try {
             await api.clockIn(user.id, parseInt(selectedProjectId, 10), {
+                address: '', // Mocked address, a real app would reverse-geocode
                 lat: geoData.coords.latitude,
                 lng: geoData.coords.longitude,
                 accuracy: geoData.coords.accuracy,
@@ -189,7 +190,12 @@ export const TimeTrackingView: React.FC<TimeTrackingViewProps> = ({ user, addToa
         if (!activeTimesheet || !geoData) return;
         setIsSubmitting(true);
         try {
-            await api.clockOut(activeTimesheet.id, { lat: geoData.coords.latitude, lng: geoData.coords.longitude, accuracy: geoData.coords.accuracy }, checkOutPhoto || undefined);
+            await api.clockOut(activeTimesheet.id, { 
+                address: '', // Mocked address, a real app would reverse-geocode
+                lat: geoData.coords.latitude, 
+                lng: geoData.coords.longitude, 
+                accuracy: geoData.coords.accuracy 
+            }, checkOutPhoto || undefined);
             addToast('Successfully clocked out!', 'success');
             setCheckOutPhoto(null);
             await fetchData();

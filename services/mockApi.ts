@@ -1,239 +1,165 @@
-
-import * as mockData from './mockData';
-import {
-  User, Company, Project, Todo, Timesheet, Document, SafetyIncident,
-  FinancialKPIs, Invoice, Quote, Client, Equipment, ResourceAssignment,
-  ProjectAssignment, Announcement, Conversation, ChatMessage,
-  ProjectTemplate, PlatformSettings, PendingApproval, AuditLog, UsageMetric, SystemHealth, CompanySettings,
-  Role, TodoStatus, TodoPriority, WorkType, TimesheetStatus, DocumentCategory,
-  DocumentStatus, IncidentSeverity, IncidentType, IncidentStatus as SafetyIncidentStatus, EquipmentStatus,
-  InvoiceStatus, QuoteStatus, ProjectRole, Tool, ToolStatus, MonthlyFinancials, CostBreakdown, DocumentAcknowledgement, ProjectPhoto, OperativeReport, Grant, RiskAnalysis, BidPackage, Comment, AISearchResult, View, InvoiceLineItem
+// services/mockApi.ts
+import { 
+    User, Project, Todo, Timesheet, SafetyIncident, Equipment, Document,
+    Company, Client, Invoice, Quote, ResourceAssignment, ProjectAssignment,
+    DocumentAcknowledgement, OperativeReport, WeatherForecast, FinancialKPIs,
+    Conversation, ChatMessage, Announcement, AuditLog, PendingApproval,
+    SystemHealth, UsageMetric, PlatformSettings, ProjectTemplate, TemplateTask,
+    Grant, RiskAnalysis, BidPackage, AISearchResult, CompanySettings,
+    Role, TimesheetStatus, IncidentStatus, DocumentStatus, WorkType
 } from '../types';
-import { GenerateContentResponse, Part } from "@google/genai";
+import { mockData } from './mockData';
 
-
-// Utility to simulate network delay
+// Helper to simulate network latency
 const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-// Let's make the data mutable for our mock API
-let users = [...mockData.users];
-let companies = [...mockData.companies];
-let projects = [...mockData.projects];
-let todos = [...mockData.todos];
-let timesheets = [...mockData.timesheets];
-let documents = [...mockData.documents];
-let safetyIncidents = [...mockData.safetyIncidents];
-let clients = [...mockData.clients];
-let invoices = [...mockData.invoices];
-let quotes = [...mockData.quotes];
-let equipment = [...mockData.equipment];
-let resourceAssignments = [...mockData.resourceAssignments];
-let projectAssignments = [...mockData.projectAssignments];
-let announcements = [...mockData.announcements];
-let conversations = [...mockData.conversations];
-let projectTemplates = [...mockData.projectTemplates];
-let platformSettings = { ...mockData.platformSettings };
-let pendingApprovals = [...mockData.pendingApprovals];
-let auditLogs = [...mockData.auditLogs];
-const usageMetrics = [...mockData.usageMetrics];
-const systemHealth = { ...mockData.systemHealth };
-let companySettings = [...mockData.companySettings];
-const tools = [...mockData.tools];
-const monthlyFinancials = [...mockData.monthlyFinancials];
-const costBreakdown = [...mockData.costBreakdown];
-let documentAcks = [...mockData.documentAcks];
-const projectPhotos = [...mockData.projectPhotos];
-let operativeReports = [...mockData.operativeReports];
+// Simple deep copy to avoid modifying the original mock data
+const deepCopy = <T,>(obj: T): T => JSON.parse(JSON.stringify(obj));
 
+let data = deepCopy(mockData);
 
-const logAudit = (actorId: number, action: string, target?: { id: number | string; type: string; name: string }, projectId?: number) => {
-    const log: AuditLog = {
-        id: Date.now(),
-        timestamp: new Date(),
-        actorId,
-        action,
-        target,
-        projectId,
-    };
-    auditLogs.unshift(log);
+// Function to reset data for testing purposes if needed
+export const resetMockData = () => {
+    data = deepCopy(mockData);
 };
 
-// A simple mock for Gemini API responses
-const mockGeminiResponse = (text: string): GenerateContentResponse => ({
-    text: text,
-    candidates: [{
-        content: {
-            parts: [{ text }],
-            role: 'model'
-        },
-        finishReason: 'STOP',
-        index: 0,
-        safetyRatings: [],
-    }],
-});
-
-const mockGeminiImageResponse = (text: string, base64Image: string, mimeType: string): GenerateContentResponse => ({
-    text: text,
-    candidates: [{
-        content: {
-            parts: [
-                { text: text },
-                { inlineData: { data: base64Image, mimeType: mimeType } }
-            ],
-            role: 'model'
-        },
-        finishReason: 'STOP',
-        index: 0,
-        safetyRatings: [],
-    }]
-});
-
-
 export const api = {
-    // --- Companies & Users ---
+    // User and Company
     getCompanies: async (): Promise<Company[]> => {
         await delay(200);
-        return companies.filter(c => c.status !== 'Archived');
+        return deepCopy(data.companies.filter(c => c.id !== 0));
     },
     getUsersByCompany: async (companyId?: number): Promise<User[]> => {
         await delay(200);
-        if (companyId === undefined) return users;
-        return users.filter(u => u.companyId === companyId);
+        if (companyId === undefined) return deepCopy(data.users);
+        if (companyId === 0) return deepCopy(data.users.filter(u => u.companyId === 0 || !u.companyId));
+        return deepCopy(data.users.filter(u => u.companyId === companyId));
     },
-    // --- Projects ---
-    getProjectsByCompany: async (companyId: number): Promise<Project[]> => {
-        await delay(300);
-        return projects.filter(p => p.companyId === companyId);
-    },
+
+    // Projects
     getProjectsByUser: async (userId: number): Promise<Project[]> => {
         await delay(300);
-        const userProjectIds = new Set(projectAssignments.filter(pa => pa.userId === userId).map(pa => pa.projectId));
-        return projects.filter(p => userProjectIds.has(p.id));
+        const userAssignments = data.projectAssignments.filter(a => a.userId === userId);
+        const projectIds = new Set(userAssignments.map(a => a.projectId));
+        return deepCopy(data.projects.filter(p => projectIds.has(p.id)));
     },
-    getProjectsByManager: async (userId: number): Promise<Project[]> => {
+    getProjectsByManager: async (managerId: number): Promise<Project[]> => {
         await delay(300);
-        const managedProjectIds = new Set(projectAssignments.filter(pa => pa.userId === userId && pa.projectRole === ProjectRole.MANAGER).map(pa => pa.projectId));
-        return projects.filter(p => managedProjectIds.has(p.id));
+        // In a real API, we'd check if the user is a PM for the project
+        // Here, we just return projects where they are assigned.
+        return api.getProjectsByUser(managerId);
     },
-    createProject: async (projectData: Omit<Project, 'id' | 'companyId' | 'actualCost' | 'status'>, templateId: number | null, actorId: number): Promise<Project> => {
-        await delay(1000);
-        const user = users.find(u => u.id === actorId);
-        if (!user || !user.companyId) throw new Error("User not found or not associated with a company.");
-
+    getProjectsByCompany: async (companyId?: number): Promise<Project[]> => {
+        await delay(300);
+        if (!companyId) return [];
+        return deepCopy(data.projects.filter(p => p.companyId === companyId));
+    },
+    createProject: async (projectData: Omit<Project, 'id'|'companyId'|'actualCost'|'status'>, templateId: number | null, creatorId: number): Promise<Project> => {
+        await delay(500);
+        const user = data.users.find(u => u.id === creatorId);
+        if (!user?.companyId) throw new Error("User has no company ID");
+        
         const newProject: Project = {
-            ...projectData,
             id: Date.now(),
             companyId: user.companyId,
+            ...projectData,
             actualCost: 0,
-            status: 'Active',
+            status: 'Active'
         };
-        projects.push(newProject);
-        
-        // Add creator as project manager
-        projectAssignments.push({ id: Date.now(), userId: actorId, projectId: newProject.id, projectRole: ProjectRole.MANAGER });
-        
-        // If template is used, create tasks from it
+        data.projects.push(newProject);
+        data.projectAssignments.push({ userId: creatorId, projectId: newProject.id });
+
         if (templateId) {
-            const template = projectTemplates.find(t => t.id === templateId);
+            const template = data.projectTemplates.find(t => t.id === templateId);
             if (template) {
-                template.templateTasks.forEach(tt => {
+                template.templateTasks.forEach(task => {
                     const newTodo: Todo = {
                         id: Date.now() + Math.random(),
-                        text: tt.text,
                         projectId: newProject.id,
-                        creatorId: actorId,
+                        text: task.text,
+                        priority: task.priority,
                         status: TodoStatus.TODO,
-                        priority: tt.priority,
+                        creatorId: creatorId,
                         createdAt: new Date(),
                     };
-                    todos.push(newTodo);
+                    data.todos.push(newTodo);
                 });
             }
         }
-        
-        logAudit(actorId, 'Created Project', { id: newProject.id, type: 'Project', name: newProject.name });
-        return newProject;
+        return deepCopy(newProject);
     },
-    // --- Tasks (Todos) ---
+
+    // Todos
     getTodosByProject: async (projectId: number): Promise<Todo[]> => {
-        await delay(400);
-        return todos.filter(t => t.projectId === projectId);
+        await delay(100);
+        return deepCopy(data.todos.filter(t => t.projectId === projectId));
     },
     getTodosByProjectIds: async (projectIds: number[]): Promise<Todo[]> => {
-        await delay(500);
+        await delay(400);
         const idSet = new Set(projectIds);
-        return todos.filter(t => idSet.has(t.projectId));
+        return deepCopy(data.todos.filter(t => idSet.has(t.projectId)));
     },
-    addTodo: async (taskData: Omit<Todo, 'id' | 'createdAt'>, actorId: number): Promise<Todo> => {
-        await delay(500);
+    addTodo: async (taskData: Omit<Todo, 'id' | 'createdAt'>, creatorId: number): Promise<Todo> => {
+        await delay(200);
         const newTodo: Todo = {
-            ...taskData,
             id: Date.now(),
+            ...taskData,
+            creatorId,
             createdAt: new Date(),
         };
-        todos.unshift(newTodo);
-        logAudit(actorId, 'Created Task', { id: newTodo.id, type: 'Task', name: newTodo.text }, newTodo.projectId);
-        return newTodo;
+        data.todos.unshift(newTodo);
+        return deepCopy(newTodo);
     },
     updateTodo: async (todoId: number | string, updates: Partial<Todo>, actorId: number): Promise<Todo> => {
-        await delay(300);
-        const todoIndex = todos.findIndex(t => t.id === todoId);
+        await delay(150);
+        const todoIndex = data.todos.findIndex(t => t.id === todoId);
         if (todoIndex === -1) throw new Error("Todo not found");
-        
-        // If status is changed to Done, add completedAt timestamp
-        if (updates.status === TodoStatus.DONE && todos[todoIndex].status !== TodoStatus.DONE) {
-            updates.completedAt = new Date();
-        }
-
-        todos[todoIndex] = { ...todos[todoIndex], ...updates };
-        logAudit(actorId, `Updated Task: ${Object.keys(updates).join(', ')}`, { id: todoId, type: 'Task', name: todos[todoIndex].text }, todos[todoIndex].projectId);
-        return todos[todoIndex];
+        data.todos[todoIndex] = { ...data.todos[todoIndex], ...updates };
+        return deepCopy(data.todos[todoIndex]);
     },
-    updateTodoReminder: async (todoId: number, reminderDate: Date | undefined, actorId: number): Promise<Todo> => {
-        await delay(300);
-        return await api.updateTodo(todoId, { reminderAt: reminderDate }, actorId);
+    updateTodoReminder: async (todoId: number, reminderDate: Date | undefined, userId: number): Promise<Todo> => {
+        await delay(100);
+        return api.updateTodo(todoId, { reminderAt: reminderDate }, userId);
     },
     addComment: async (todoId: number | string, text: string, creatorId: number): Promise<Comment> => {
-        await delay(400);
-        const todo = todos.find(t => t.id === todoId);
-        if (!todo) throw new Error("Todo not found");
-
+        await delay(100);
         const newComment: Comment = {
             id: Date.now(),
             creatorId,
             text,
-            createdAt: new Date(),
+            createdAt: new Date()
         };
+        const todo = data.todos.find(t => t.id === todoId);
+        if (!todo) throw new Error("Todo not found");
         if (!todo.comments) todo.comments = [];
         todo.comments.push(newComment);
-        logAudit(creatorId, 'Added Comment to Task', { id: todo.id, type: 'Task', name: todo.text }, todo.projectId);
-        return newComment;
+        return deepCopy(newComment);
     },
-    // --- Timesheets ---
+
+    // Timesheets
     getTimesheetsByUser: async (userId: number): Promise<Timesheet[]> => {
-        await delay(300);
-        return timesheets.filter(ts => ts.userId === userId).sort((a,b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
+        await delay(200);
+        return deepCopy(data.timesheets.filter(ts => ts.userId === userId).sort((a,b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()));
     },
     getTimesheetsByCompany: async (companyId: number, actorId: number): Promise<Timesheet[]> => {
-        await delay(500);
-        const companyUserIds = new Set(users.filter(u => u.companyId === companyId).map(u => u.id));
-        return timesheets.filter(ts => companyUserIds.has(ts.userId));
+        await delay(400);
+        const companyUsers = new Set(data.users.filter(u => u.companyId === companyId).map(u => u.id));
+        return deepCopy(data.timesheets.filter(ts => companyUsers.has(ts.userId)));
     },
     getTimesheetsForManager: async (managerId: number): Promise<Timesheet[]> => {
-        await delay(500);
-        const managedProjectIds = new Set(projectAssignments.filter(pa => pa.userId === managerId && pa.projectRole === ProjectRole.MANAGER).map(pa => pa.projectId));
-        return timesheets.filter(ts => managedProjectIds.has(ts.projectId));
+        await delay(300);
+        const managedProjects = new Set((await api.getProjectsByManager(managerId)).map(p => p.id));
+        return deepCopy(data.timesheets.filter(ts => managedProjects.has(ts.projectId)));
     },
-    getUnbilledTimesheets: async (companyId: number): Promise<Timesheet[]> => {
+    getUnbilledTimesheets: async (companyId?: number): Promise<Timesheet[]> => {
+        await delay(200);
+        const billedIds = new Set(data.invoices.flatMap(inv => (inv as any).billedTimesheetIds || []));
+        return deepCopy(data.timesheets.filter(ts => ts.status === TimesheetStatus.APPROVED && !billedIds.has(ts.id)));
+    },
+    clockIn: async (userId: number, projectId: number, location: Location, workType: WorkType, photo?: File): Promise<Timesheet> => {
         await delay(400);
-        // This is a mock. In reality, you'd have a flag on the timesheet.
-        // For now, let's just return some recent approved timesheets.
-        return timesheets.filter(ts => ts.status === TimesheetStatus.APPROVED).slice(0, 5);
-    },
-    clockIn: async (userId: number, projectId: number, location: Location, workType: WorkType, photoFile?: File): Promise<Timesheet> => {
-        await delay(800);
-        if (timesheets.some(ts => ts.userId === userId && ts.clockOut === null)) {
-            throw new Error("You are already clocked in.");
+        if (data.timesheets.some(ts => ts.userId === userId && ts.clockOut === null)) {
+            throw new Error("User is already clocked in.");
         }
         const newTimesheet: Timesheet = {
             id: Date.now(),
@@ -241,516 +167,433 @@ export const api = {
             projectId,
             clockIn: new Date(),
             clockOut: null,
-            breaks: [],
             workType,
             status: TimesheetStatus.PENDING,
             clockInLocation: location,
-            checkInPhotoUrl: photoFile ? URL.createObjectURL(photoFile) : undefined,
+            breaks: [],
+            checkInPhotoUrl: photo ? URL.createObjectURL(photo) : undefined,
         };
-        timesheets.push(newTimesheet);
-        logAudit(userId, 'Clocked In', { id: newTimesheet.id, type: 'Timesheet', name: `Timesheet #${newTimesheet.id}`}, projectId);
-        return newTimesheet;
+        data.timesheets.push(newTimesheet);
+        return deepCopy(newTimesheet);
     },
-    clockOut: async (timesheetId: number, location: Location, photoFile?: File): Promise<Timesheet> => {
-        await delay(800);
-        const tsIndex = timesheets.findIndex(ts => ts.id === timesheetId);
-        if (tsIndex === -1) throw new Error("Timesheet not found.");
-        timesheets[tsIndex] = {
-            ...timesheets[tsIndex],
-            clockOut: new Date(),
-            clockOutLocation: location,
-            // checkOutPhotoUrl would be handled here
-        };
-        logAudit(timesheets[tsIndex].userId, 'Clocked Out', { id: timesheetId, type: 'Timesheet', name: `Timesheet #${timesheetId}`}, timesheets[tsIndex].projectId);
-        return timesheets[tsIndex];
+    clockOut: async (timesheetId: number, location: Location, photo?: File): Promise<Timesheet> => {
+        await delay(400);
+        const tsIndex = data.timesheets.findIndex(ts => ts.id === timesheetId);
+        if (tsIndex === -1) throw new Error("Timesheet not found");
+        data.timesheets[tsIndex].clockOut = new Date();
+        data.timesheets[tsIndex].clockOutLocation = location;
+        if (photo) data.timesheets[tsIndex].checkOutPhotoUrl = URL.createObjectURL(photo);
+        return deepCopy(data.timesheets[tsIndex]);
     },
-    startBreak: async (timesheetId: number, actorId: number): Promise<Timesheet> => {
-        await delay(300);
-        const ts = timesheets.find(t => t.id === timesheetId);
-        if (!ts) throw new Error('Timesheet not found');
+    startBreak: async (timesheetId: number, userId: number): Promise<Timesheet> => {
+        await delay(150);
+        const ts = data.timesheets.find(t => t.id === timesheetId);
+        if (!ts) throw new Error("Timesheet not found");
         ts.breaks.push({ startTime: new Date(), endTime: null });
-        return ts;
+        return deepCopy(ts);
     },
-    endBreak: async (timesheetId: number, actorId: number): Promise<Timesheet> => {
-        await delay(300);
-        const ts = timesheets.find(t => t.id === timesheetId);
-        if (!ts) throw new Error('Timesheet not found');
+    endBreak: async (timesheetId: number, userId: number): Promise<Timesheet> => {
+        await delay(150);
+        const ts = data.timesheets.find(t => t.id === timesheetId);
+        if (!ts) throw new Error("Timesheet not found");
         const activeBreak = ts.breaks.find(b => b.endTime === null);
         if (activeBreak) activeBreak.endTime = new Date();
-        return ts;
+        return deepCopy(ts);
     },
-    updateTimesheetStatus: async (id: number, status: TimesheetStatus, reason: string | undefined, actorId: number): Promise<Timesheet> => {
-        await delay(500);
-        const ts = timesheets.find(t => t.id === id);
+    updateTimesheetStatus: async (timesheetId: number, status: TimesheetStatus, reason: string | undefined, actorId: number): Promise<void> => {
+        await delay(200);
+        const ts = data.timesheets.find(t => t.id === timesheetId);
         if (!ts) throw new Error("Timesheet not found");
         ts.status = status;
         if (status === TimesheetStatus.REJECTED) {
             ts.rejectionReason = reason;
         }
-        logAudit(actorId, `Set Timesheet Status to ${status}`, { id, type: 'Timesheet', name: `Timesheet #${id}`}, ts.projectId);
-        return ts;
     },
-     updateTimesheet: async (id: number, updates: Partial<Timesheet>, actorId: number): Promise<Timesheet> => {
-        await delay(600);
-        const tsIndex = timesheets.findIndex(t => t.id === id);
+    updateTimesheet: async (id: number, updates: Partial<Timesheet>, actorId: number): Promise<Timesheet> => {
+        await delay(200);
+        const tsIndex = data.timesheets.findIndex(ts => ts.id === id);
         if (tsIndex === -1) throw new Error("Timesheet not found");
-        timesheets[tsIndex] = { ...timesheets[tsIndex], ...updates };
-        logAudit(actorId, 'Edited Timesheet', { id, type: 'Timesheet', name: `Timesheet #${id}`}, timesheets[tsIndex].projectId);
-        return timesheets[tsIndex];
+        data.timesheets[tsIndex] = { ...data.timesheets[tsIndex], ...updates };
+        return deepCopy(data.timesheets[tsIndex]);
     },
-    // --- Documents ---
-    getDocumentsByCompany: async (companyId: number): Promise<Document[]> => {
-        await delay(400);
-        const companyProjectIds = new Set(projects.filter(p => p.companyId === companyId).map(p => p.id));
-        return documents.filter(d => companyProjectIds.has(d.projectId));
-    },
+
+    // Documents
     getDocumentsByProjectIds: async (projectIds: number[]): Promise<Document[]> => {
-        await delay(500);
+        await delay(300);
         const idSet = new Set(projectIds);
-        return documents.filter(d => idSet.has(d.projectId));
+        return deepCopy(data.documents.filter(d => idSet.has(d.projectId)));
+    },
+    getDocumentsByCompany: async (companyId?: number): Promise<Document[]> => {
+        await delay(300);
+        const companyProjects = new Set(data.projects.filter(p => p.companyId === companyId).map(p => p.id));
+        return deepCopy(data.documents.filter(d => companyProjects.has(d.projectId)));
     },
     getDocumentAcksForUser: async (userId: number): Promise<DocumentAcknowledgement[]> => {
-        await delay(200);
-        return documentAcks.filter(ack => ack.userId === userId);
+        await delay(150);
+        return deepCopy(data.documentAcks.filter(ack => ack.userId === userId));
     },
     acknowledgeDocument: async (userId: number, documentId: number): Promise<DocumentAcknowledgement> => {
-        await delay(300);
-        const newAck: DocumentAcknowledgement = {
-            id: Date.now(),
-            userId,
-            documentId,
-            timestamp: new Date(),
-        };
-        documentAcks.push(newAck);
-        const doc = documents.find(d => d.id === documentId);
-        if (doc) {
-            logAudit(userId, 'Acknowledged Document', {id: documentId, type: 'Document', name: doc.name}, doc.projectId);
-        }
-        return newAck;
+        await delay(100);
+        const newAck: DocumentAcknowledgement = { id: Date.now(), userId, documentId, acknowledgedAt: new Date() };
+        data.documentAcks.push(newAck);
+        return deepCopy(newAck);
     },
-    initiateDocumentUpload: async (docData: Omit<Document, 'id' | 'status' | 'uploadedAt' | 'version' | 'url'>): Promise<Document> => {
-        await delay(200);
+    initiateDocumentUpload: async (docData: Omit<Document, 'id' | 'url' | 'status' | 'uploadedAt' | 'version'>): Promise<Document> => {
+        await delay(100);
         const newDoc: Document = {
-            ...docData,
             id: Date.now(),
+            ...docData,
             status: DocumentStatus.UPLOADING,
             uploadedAt: new Date(),
+            url: '',
             version: 1,
-            url: ''
         };
-        // Don't add to main list yet, wait for finalize
-        return newDoc;
+        data.documents.unshift(newDoc);
+        return deepCopy(newDoc);
     },
-    performChunkedUpload: async (docId: number, fileSize: number, onProgress: (progress: number) => void): Promise<void> => {
-        let uploaded = 0;
-        const totalChunks = 5;
-        for (let i = 0; i < totalChunks; i++) {
-            await delay(300); // Simulate chunk upload
-            uploaded += fileSize / totalChunks;
-            onProgress((uploaded / fileSize) * 100);
+    performChunkedUpload: async (docId: number, fileSize: number, onProgress: (progress: number) => void) => {
+        for (let i = 0; i <= 100; i += 10) {
+            await delay(50);
+            onProgress(i);
         }
     },
-    finalizeDocumentUpload: async (docId: number, actorId: number): Promise<Document> => {
-        await delay(500);
-        // In a real API, this would come from the initiated data.
-        // Here we just mock it.
-        const docStub = {
-             id: docId,
-             name: 'Uploaded File.pdf',
-             projectId: projects[0].id,
-             category: DocumentCategory.GENERAL,
-             uploadedAt: new Date(),
-             version: 1,
-             creatorId: actorId
-        };
-        const finalDoc: Document = {
-            ...docStub,
-            status: DocumentStatus.APPROVED,
-            url: '/sample.pdf',
-        };
-        documents.unshift(finalDoc);
-        logAudit(actorId, 'Uploaded Document', {id: docId, type: 'Document', name: finalDoc.name}, finalDoc.projectId);
-        return finalDoc;
+    finalizeDocumentUpload: async (docId: number, userId: number): Promise<Document> => {
+        await delay(1000); // Simulate processing
+        const doc = data.documents.find(d => d.id === docId);
+        if (!doc) throw new Error("Document not found");
+        doc.status = DocumentStatus.APPROVED; // simplified
+        doc.url = `/mock-docs/doc-${docId}.pdf`;
+        return deepCopy(doc);
     },
-    uploadOfflineDocument: async (docData: any, fileData: any, actorId: number): Promise<void> => {
-        await delay(1500); // Simulate a longer upload
-        const finalDoc: Document = {
+    uploadOfflineDocument: async (docData: any, fileData: any, creatorId: number) => {
+        await delay(1000);
+        const newDoc: Document = {
             id: Date.now(),
-            name: docData.name,
-            projectId: docData.projectId,
-            category: docData.category,
-            creatorId: actorId,
+            ...docData,
             status: DocumentStatus.APPROVED,
             uploadedAt: new Date(),
+            url: `/mock-docs/offline-doc-${Date.now()}.pdf`,
             version: 1,
-            url: '/sample.pdf', // Mock URL
         };
-        documents.unshift(finalDoc);
-        logAudit(actorId, 'Uploaded Offline Document', {id: finalDoc.id, type: 'Document', name: finalDoc.name}, finalDoc.projectId);
+        data.documents.unshift(newDoc);
     },
-    // --- Safety ---
+
+    // Safety
     getSafetyIncidentsByCompany: async (companyId: number): Promise<SafetyIncident[]> => {
-        await delay(400);
-        const companyProjectIds = new Set(projects.filter(p => p.companyId === companyId).map(p => p.id));
-        return safetyIncidents.filter(i => companyProjectIds.has(i.projectId));
+        await delay(300);
+        const companyProjects = new Set(data.projects.filter(p => p.companyId === companyId).map(p => p.id));
+        return deepCopy(data.safetyIncidents.filter(i => companyProjects.has(i.projectId)));
     },
     getIncidentsByProject: async (projectId: number): Promise<SafetyIncident[]> => {
+        await delay(200);
+        return deepCopy(data.safetyIncidents.filter(i => i.projectId === projectId));
+    },
+    reportSafetyIncident: async (incidentData: Omit<SafetyIncident, 'id'>, actorId: number): Promise<SafetyIncident> => {
         await delay(300);
-        return safetyIncidents.filter(i => i.projectId === projectId);
+        const newIncident: SafetyIncident = { id: Date.now(), ...incidentData };
+        data.safetyIncidents.unshift(newIncident);
+        return deepCopy(newIncident);
     },
-    reportSafetyIncident: async (report: Omit<SafetyIncident, 'id'>, actorId: number): Promise<SafetyIncident> => {
-        await delay(700);
-        const newIncident: SafetyIncident = {
-            ...report,
-            id: Date.now(),
+
+    // Equipment & Resources
+    getEquipmentByCompany: async (companyId: number): Promise<Equipment[]> => {
+        await delay(200);
+        return deepCopy(data.equipment.filter(e => e.companyId === companyId));
+    },
+    assignEquipmentToProject: async (equipmentId: number, projectId: number, actorId: number): Promise<void> => {
+        await delay(150);
+        const item = data.equipment.find(e => e.id === equipmentId);
+        if (!item) throw new Error("Equipment not found");
+        item.projectId = projectId;
+        item.status = 'In Use';
+    },
+    unassignEquipmentFromProject: async (equipmentId: number, actorId: number): Promise<void> => {
+        await delay(150);
+        const item = data.equipment.find(e => e.id === equipmentId);
+        if (!item) throw new Error("Equipment not found");
+        delete item.projectId;
+        item.status = 'Available';
+    },
+    updateEquipmentStatus: async (equipmentId: number, status: EquipmentStatus, actorId: number): Promise<void> => {
+        await delay(150);
+        const item = data.equipment.find(e => e.id === equipmentId);
+        if (!item) throw new Error("Equipment not found");
+        item.status = status;
+        if (status === 'Available') delete item.projectId;
+    },
+    getResourceAssignments: async (companyId?: number): Promise<ResourceAssignment[]> => {
+        await delay(200);
+        return deepCopy(data.resourceAssignments.filter(a => a.companyId === companyId));
+    },
+    createResourceAssignment: async (assignmentData: Omit<ResourceAssignment, 'id'>, actorId: number): Promise<ResourceAssignment> => {
+        await delay(200);
+        const newAssignment: ResourceAssignment = { id: Date.now(), ...assignmentData };
+        data.resourceAssignments.push(newAssignment);
+        return newAssignment;
+    },
+    deleteResourceAssignment: async (assignmentId: number, actorId: number): Promise<void> => {
+        await delay(150);
+        data.resourceAssignments = data.resourceAssignments.filter(a => a.id !== assignmentId);
+    },
+
+    // Other
+    getProjectAssignmentsByCompany: async (companyId: number): Promise<ProjectAssignment[]> => {
+        await delay(200);
+        // This is a simplification. We should get projects for company then filter assignments.
+        return deepCopy(data.projectAssignments);
+    },
+    getAuditLogsForUserProjects: async (userId: number): Promise<AuditLog[]> => {
+        await delay(200);
+        return deepCopy(data.auditLogs.slice(0, 15));
+    },
+    getWeatherForecast: async (lat: number, lng: number): Promise<WeatherForecast> => {
+        await delay(400);
+        return {
+            temperature: 18,
+            condition: "Partly Cloudy",
+            icon: "M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"
         };
-        safetyIncidents.unshift(newIncident);
-        logAudit(actorId, 'Reported Safety Incident', {id: newIncident.id, type: 'SafetyIncident', name: newIncident.type}, newIncident.projectId);
-        return newIncident;
     },
-    submitOperativeReport: async (reportData: { projectId: number; userId: number; notes: string; photoFile?: File }): Promise<OperativeReport> => {
-        await delay(800);
+    submitOperativeReport: async (reportData: { projectId: number, userId: number, notes: string, photoFile?: File }): Promise<void> => {
+        await delay(500);
         const newReport: OperativeReport = {
             id: Date.now(),
             projectId: reportData.projectId,
             userId: reportData.userId,
             notes: reportData.notes,
-            timestamp: new Date(),
+            submittedAt: new Date(),
             photoUrl: reportData.photoFile ? URL.createObjectURL(reportData.photoFile) : undefined
         };
-        operativeReports.push(newReport);
-        logAudit(reportData.userId, 'Submitted Operative Report', {id: newReport.id, type: 'OperativeReport', name: `Report for project ${reportData.projectId}`}, reportData.projectId);
-        return newReport;
-    },
-    getOperativeReportsByProject: async (projectId: number): Promise<OperativeReport[]> => {
-        await delay(300);
-        return operativeReports.filter(r => r.projectId === projectId);
-    },
-    getPhotosForProject: async (projectId: number): Promise<ProjectPhoto[]> => {
-        await delay(300);
-        return projectPhotos.filter(p => p.projectId === projectId);
-    },
-    // --- Financials ---
-    getClientsByCompany: async (companyId: number): Promise<Client[]> => {
-        await delay(300);
-        return clients.filter(c => c.companyId === companyId);
-    },
-    getInvoicesByCompany: async (companyId: number): Promise<Invoice[]> => {
-        await delay(400);
-        return invoices.filter(i => i.companyId === companyId);
-    },
-    getQuotesByCompany: async (companyId: number): Promise<Quote[]> => {
-        await delay(400);
-        return quotes.filter(q => q.companyId === companyId);
-    },
-    getFinancialKPIsForCompany: async (companyId: number): Promise<FinancialKPIs> => {
-        await delay(600);
-        return {
-            profitability: 22.5,
-            projectMargin: 18.2,
-            cashFlow: 125000,
-            currency: 'GBP'
-        };
-    },
-     getMonthlyFinancials: async (companyId: number): Promise<MonthlyFinancials[]> => {
-        await delay(500);
-        return monthlyFinancials;
-    },
-    getCostBreakdown: async (companyId: number): Promise<CostBreakdown[]> => {
-        await delay(500);
-        return costBreakdown;
-    },
-    createInvoice: async (invoiceData: Omit<Invoice, 'id' | 'issuedAt' | 'amountDue'>, billedTimesheetIds: number[], actorId: number): Promise<Invoice> => {
-        await delay(1000);
-        const newInvoice: Invoice = {
-            ...invoiceData,
-            id: Date.now(),
-            issuedAt: new Date(),
-            amountDue: invoiceData.total,
-        };
-        invoices.push(newInvoice);
-        // Here you would mark timesheets as billed
-        logAudit(actorId, 'Created Invoice', {id: newInvoice.id, type: 'Invoice', name: `Invoice #${newInvoice.id}`}, newInvoice.projectId);
-        return newInvoice;
-    },
-    // --- Equipment ---
-    getEquipmentByCompany: async (companyId: number): Promise<Equipment[]> => {
-        await delay(300);
-        return equipment.filter(e => e.companyId === companyId);
-    },
-    assignEquipmentToProject: async (equipmentId: number, projectId: number, actorId: number): Promise<Equipment> => {
-        await delay(500);
-        const item = equipment.find(e => e.id === equipmentId);
-        if (!item) throw new Error("Equipment not found");
-        item.projectId = projectId;
-        item.status = EquipmentStatus.IN_USE;
-        logAudit(actorId, `Assigned Equipment to Project`, {id: equipmentId, type: 'Equipment', name: item.name}, projectId);
-        return item;
-    },
-    unassignEquipmentFromProject: async (equipmentId: number, actorId: number): Promise<Equipment> => {
-        await delay(500);
-        const item = equipment.find(e => e.id === equipmentId);
-        if (!item) throw new Error("Equipment not found");
-        const projectId = item.projectId;
-        item.projectId = undefined;
-        item.status = EquipmentStatus.AVAILABLE;
-        logAudit(actorId, `Unassigned Equipment from Project`, {id: equipmentId, type: 'Equipment', name: item.name}, projectId);
-        return item;
-    },
-    updateEquipmentStatus: async (equipmentId: number, status: EquipmentStatus, actorId: number): Promise<Equipment> => {
-        await delay(400);
-        const item = equipment.find(e => e.id === equipmentId);
-        if (!item) throw new Error("Equipment not found");
-        item.status = status;
-        if(status === EquipmentStatus.AVAILABLE) item.projectId = undefined;
-        logAudit(actorId, `Updated Equipment Status to ${status}`, {id: equipmentId, type: 'Equipment', name: item.name}, item.projectId);
-        return item;
-    },
-    getResourceAssignments: async (companyId: number): Promise<ResourceAssignment[]> => {
-        await delay(300);
-        return resourceAssignments.filter(ra => ra.companyId === companyId);
-    },
-    createResourceAssignment: async (assignmentData: Omit<ResourceAssignment, 'id'>, actorId: number): Promise<ResourceAssignment> => {
-        await delay(500);
-        const newAssignment: ResourceAssignment = { ...assignmentData, id: Date.now() };
-        resourceAssignments.push(newAssignment);
-        logAudit(actorId, `Created Resource Assignment`, {id: newAssignment.id, type: 'Assignment', name: `Assignment #${newAssignment.id}`}, newAssignment.projectId);
-        return newAssignment;
-    },
-    deleteResourceAssignment: async (assignmentId: number, actorId: number): Promise<void> => {
-        await delay(500);
-        resourceAssignments = resourceAssignments.filter(ra => ra.id !== assignmentId);
-        logAudit(actorId, `Deleted Resource Assignment`, {id: assignmentId, type: 'Assignment', name: `Assignment #${assignmentId}`});
-    },
-    // --- Team & Assignments ---
-    getProjectAssignmentsByCompany: async (companyId: number): Promise<ProjectAssignment[]> => {
-        await delay(200);
-        const companyProjectIds = new Set(projects.filter(p => p.companyId === companyId).map(p => p.id));
-        return projectAssignments.filter(pa => companyProjectIds.has(pa.projectId));
-    },
-    // --- Communication ---
-    getAnnouncementsForCompany: async (companyId: number): Promise<Announcement[]> => {
-        await delay(300);
-        return announcements.filter(a => a.scope === 'company' && a.companyId === companyId || a.scope === 'platform');
-    },
-    sendAnnouncement: async (announcement: Omit<Announcement, 'id' | 'createdAt'>, actorId: number): Promise<Announcement> => {
-        await delay(600);
-        const newAnnouncement: Announcement = { ...announcement, id: Date.now(), createdAt: new Date() };
-        announcements.unshift(newAnnouncement);
-        logAudit(actorId, 'Sent Announcement', { id: newAnnouncement.id, type: 'Announcement', name: newAnnouncement.title });
-        return newAnnouncement;
+        data.operativeReports.push(newReport);
     },
     getConversationsForUser: async (userId: number): Promise<Conversation[]> => {
-        await delay(400);
-        return conversations.filter(c => c.participants.includes(userId));
+        await delay(100);
+        return deepCopy(data.conversations.filter(c => c.participants.includes(userId)));
     },
-    getMessagesForConversation: async (conversationId: number, userId: number): Promise<ChatMessage[]> => {
-        await delay(200);
-        const convo = conversations.find(c => c.id === conversationId);
+    getMessagesForConversation: async (convoId: number, userId: number): Promise<ChatMessage[]> => {
+        await delay(150);
+        const convo = data.conversations.find(c => c.id === convoId);
         if (!convo) return [];
-        
         // Mark messages as read
+        convo.messages.forEach(m => {
+            if (m.senderId !== userId) m.isRead = true;
+        });
         if (convo.lastMessage && convo.lastMessage.senderId !== userId) {
             convo.lastMessage.isRead = true;
         }
-        convo.messages.forEach(msg => {
-            if(msg.senderId !== userId) msg.isRead = true;
-        })
-
-        return convo.messages;
+        return deepCopy(convo.messages);
     },
-    sendMessage: async (senderId: number, recipientId: number, content: string): Promise<{ message: ChatMessage, conversation: Conversation }> => {
-        await delay(500);
-        let convo = conversations.find(c => c.participants.includes(senderId) && c.participants.includes(recipientId));
-        
+    sendMessage: async (senderId: number, recipientId: number, content: string): Promise<{message: ChatMessage, conversation: Conversation}> => {
+        await delay(200);
+        let convo = data.conversations.find(c => c.participants.includes(senderId) && c.participants.includes(recipientId));
         if (!convo) {
             convo = { id: Date.now(), participants: [senderId, recipientId], messages: [], lastMessage: null };
-            conversations.push(convo);
+            data.conversations.unshift(convo);
         }
-
-        const newMessage: ChatMessage = {
-            id: Date.now(),
-            conversationId: convo.id,
-            senderId,
-            content,
-            timestamp: new Date(),
-            isRead: false,
-        };
-
+        const newMessage: ChatMessage = { id: Date.now(), senderId, content, timestamp: new Date(), isRead: false };
         convo.messages.push(newMessage);
         convo.lastMessage = newMessage;
-        return { message: newMessage, conversation: convo };
+        return { message: deepCopy(newMessage), conversation: deepCopy(convo) };
     },
-    // --- Templates ---
-    getProjectTemplates: async (companyId: number): Promise<ProjectTemplate[]> => {
-        await delay(400);
-        return projectTemplates.filter(t => t.companyId === companyId);
+    getAnnouncementsForCompany: async (companyId: number): Promise<Announcement[]> => {
+        await delay(150);
+        return deepCopy(data.announcements.filter(a => a.scope === 'platform' || a.scope === 'company')); // Simplified
     },
-    saveProjectTemplate: async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate, actorId: number): Promise<ProjectTemplate> => {
-        await delay(800);
-        if ('id' in templateData) { // Update
-            const index = projectTemplates.findIndex(t => t.id === templateData.id);
-            if (index > -1) {
-                projectTemplates[index] = templateData;
-                logAudit(actorId, 'Updated Project Template', { id: templateData.id, type: 'Template', name: templateData.name });
-                return templateData;
-            }
-        }
-        // Create
-        const newTemplate: ProjectTemplate = { ...(templateData as Omit<ProjectTemplate, 'id'>), id: Date.now() };
-        projectTemplates.push(newTemplate);
-        logAudit(actorId, 'Created Project Template', { id: newTemplate.id, type: 'Template', name: newTemplate.name });
-        return newTemplate;
-    },
-    deleteProjectTemplate: async (templateId: number, actorId: number): Promise<void> => {
-        await delay(500);
-        const template = projectTemplates.find(t => t.id === templateId);
-        projectTemplates = projectTemplates.filter(t => t.id !== templateId);
-        if (template) {
-            logAudit(actorId, 'Deleted Project Template', { id: template.id, type: 'Template', name: template.name });
-        }
-    },
-    // --- AI & Tools ---
-    getTools: async (userId: number): Promise<Tool[]> => {
+    getCompanySettings: async (companyId: number): Promise<CompanySettings> => {
         await delay(100);
-        return tools;
+        const settings = data.companySettings.find(s => s.companyId === companyId);
+        if (!settings) return deepCopy(data.companySettings[0]); // return default
+        return deepCopy(settings);
     },
+    updateCompanySettings: async (companyId: number, settings: CompanySettings, actorId: number): Promise<CompanySettings> => {
+        await delay(200);
+        const settingIndex = data.companySettings.findIndex(s => s.companyId === companyId);
+        if (settingIndex > -1) {
+            data.companySettings[settingIndex] = { ...data.companySettings[settingIndex], ...settings };
+        } else {
+            data.companySettings.push({ id: Date.now(), companyId, ...settings });
+        }
+        return settings;
+    },
+
+    // Financials
+    getFinancialKPIsForCompany: async (companyId?: number): Promise<FinancialKPIs> => {
+        await delay(500);
+        return { profitability: 12.5, projectMargin: 18.2, cashFlow: 150340, currency: 'GBP' };
+    },
+    getInvoicesByCompany: async (companyId?: number): Promise<Invoice[]> => {
+        await delay(300);
+        return deepCopy(data.invoices.filter(i => i.companyId === companyId));
+    },
+    getQuotesByCompany: async (companyId?: number): Promise<Quote[]> => {
+        await delay(300);
+        return deepCopy(data.quotes.filter(q => q.companyId === companyId));
+    },
+    getClientsByCompany: async (companyId?: number): Promise<Client[]> => {
+        await delay(200);
+        return deepCopy(data.clients.filter(c => c.companyId === companyId));
+    },
+    getMonthlyFinancials: async (companyId?: number): Promise<any[]> => {
+        await delay(200);
+        return deepCopy(data.monthlyFinancials);
+    },
+    getCostBreakdown: async (companyId?: number): Promise<any[]> => {
+        await delay(200);
+        return deepCopy(data.costBreakdown);
+    },
+    createInvoice: async (invoiceData: any, timesheetIds: number[], actorId: number): Promise<Invoice> => {
+        await delay(500);
+        const newInvoice: Invoice = {
+            id: Date.now(),
+            ...invoiceData,
+            issuedAt: new Date(),
+            amountDue: invoiceData.total,
+        };
+        (newInvoice as any).billedTimesheetIds = timesheetIds;
+        data.invoices.unshift(newInvoice);
+        return deepCopy(newInvoice);
+    },
+
+    // AI Tools
     searchAcrossDocuments: async (query: string, projectIds: number[], userId: number): Promise<AISearchResult> => {
-        await delay(2000);
-        const relevantDocs = documents.filter(d => projectIds.includes(d.projectId));
-        if (relevantDocs.length === 0) {
-            return { summary: "No relevant documents found to search within.", sources: [] };
-        }
-        return {
-            summary: `Based on documents like "${relevantDocs[0].name}", the specifications for "${query}" require Grade A materials and adherence to safety protocol 2.1.`,
-            sources: relevantDocs.slice(0, 2).map(d => ({
-                documentId: d.id,
-                snippet: `...contains information related to your query about ${query}...`
-            }))
-        };
-    },
-    generateSafetyAnalysis: async (incidents: SafetyIncident[], projectId: number, userId: number): Promise<{ report: string }> => {
-        await delay(2500);
-        const project = projects.find(p => p.id === projectId);
-        return { report: `Safety Analysis for ${project?.name}:\n\nA high number of "Near Miss" incidents (${incidents.filter(i => i.type === IncidentType.NEAR_MISS).length}) were reported on the East face scaffolding. \n\nRecommendation: Immediately conduct a scaffolding safety review and hold a mandatory toolbox talk for all operatives working at height.` };
-    },
-     findGrants: async (keywords: string, location: string): Promise<Grant[]> => {
         await delay(1500);
-        return [
-            { id: 'g1', name: 'Green Construction Innovation Fund', agency: 'Gov.UK', amount: '£50,000 - £250,000', description: 'Supports SMEs using sustainable materials.', url: '#' },
-            { id: 'g2', name: 'Heritage Site Restoration Grant', agency: 'National Trust', amount: 'Up to £100,000', description: 'Funding for restoring historically significant buildings.', url: '#' },
-        ];
-    },
-    analyzeForRisks: async (text: string): Promise<RiskAnalysis> => {
-        await delay(1500);
+        if (query.toLowerCase().includes("fail")) throw new Error("AI search engine failed to respond.");
         return {
-            summary: "The provided text contains one medium financial risk related to unclear payment terms and one low compliance risk.",
-            identifiedRisks: [{
-                severity: 'Medium',
-                description: "Payment terms state 'Net 30' but do not specify penalties for late payment.",
-                recommendation: "Amend terms to include a 1.5% monthly interest charge on overdue invoices."
-            }]
-        }
-    },
-    generateBidPackage: async (tenderUrl: string, strengths: string): Promise<BidPackage> => {
-        await delay(2000);
-        return {
-            coverLetter: "Dear Sir/Madam,\n\nPlease find our comprehensive bid for the project. Our expertise in sustainable materials makes us an ideal partner.\n\nSincerely,\nAS Agents",
-            checklist: ["Financial statements", "Safety record (HS-01)", "Insurance certificate", "Project timeline"],
-            summary: "This bid outlines a cost-effective approach, leveraging our core strengths to deliver the project on time and within budget."
-        };
-    },
-    generateDailySummary: async (projectId: number, date: Date, userId: number): Promise<string> => {
-        await delay(1800);
-        const project = projects.find(p => p.id === projectId);
-        return `--- Daily Summary for ${project?.name} - ${date.toLocaleDateString()} ---\n\nProgress:\n- Completed framing on Floor 5.\n- Received HVAC unit delivery.\n\nIssues:\n- Minor safety observation (trailing cables) reported and resolved.\n\nNext Steps:\n- Begin HVAC installation on Floor 6.\n- Scheduled concrete pour for Wednesday.`
-    },
-    editImageWithAi: async (base64: string, mimeType: string, prompt: string, projectId: number, userId: number): Promise<{ parts: Part[] }> => {
-        await delay(2500);
-        // This is a mock. It doesn't actually edit the image. It just returns the original with a text response.
-        return {
-            parts: [
-                { text: `Analysis for prompt "${prompt}": One potential hazard found near the scaffolding. All workers appear to be wearing correct PPE.` },
-                { inlineData: { data: base64, mimeType: mimeType } }
+            summary: `Based on the documents, the rebar specification for the foundation is grade B500B, and all safety harnesses must be inspected weekly. The deadline for the phase 2 concrete pour is approaching.`,
+            sources: [
+                { documentId: 1, snippet: `...all structural steel must conform to grade S355, while all reinforcing bar (rebar) shall be B500B standard...` },
+                { documentId: 3, snippet: `...weekly inspection of all fall arrest systems, including harnesses and lanyards, is mandatory...` }
             ]
         };
     },
-    // --- Settings ---
-    getCompanySettings: async (companyId: number): Promise<CompanySettings> => {
-        await delay(100);
-        return companySettings.find(cs => cs.companyId === companyId) || companySettings[0];
+    generateSafetyAnalysis: async (incidents: SafetyIncident[], projectId: number, userId: number): Promise<{ report: string }> => {
+        await delay(2000);
+        return { report: `Analysis of ${incidents.length} incidents for Project ${projectId}:\n\nA recurring trend of 'Near Miss' incidents involving falling objects from height has been identified. This suggests a need to review and enforce stricter material handling protocols on upper levels.\n\nRecommendations:\n1. Mandate the use of tethered tools for all personnel working at height.\n2. Increase the frequency of site walks by the Safety Officer, focusing on storage and securing of materials.\n3. Hold a toolbox talk specifically addressing this issue within the next 48 hours.` };
     },
-    updateCompanySettings: async (companyId: number, settings: CompanySettings, actorId: number): Promise<CompanySettings> => {
-        await delay(500);
-        const index = companySettings.findIndex(cs => cs.companyId === companyId);
-        if (index > -1) {
-            companySettings[index] = settings;
-        } else {
-            companySettings.push(settings);
-        }
-        logAudit(actorId, `Updated Company Settings`);
-        return settings;
+    generateDailySummary: async (projectId: number, date: Date, userId: number): Promise<string> => {
+        await delay(1500);
+        return `Date: ${date.toLocaleDateString()} - Project ID: ${projectId}
+--- DAILY SUMMARY ---
+Weather: 18°C, Partly Cloudy
+Personnel On-site: 12 Operatives, 2 Foremen, 1 PM
+
+Work Completed:
+- Completed rebar installation for the main foundation slab.
+- Poured section 2 of the concrete foundation (15 cubic meters).
+- Received delivery of structural steel beams.
+
+Safety Observations:
+- One minor incident reported: Near miss with a dropped hand tool (no injury).
+- All personnel adhered to PPE requirements.
+
+Blockers:
+- Awaiting final permit for electrical work, may delay next week's schedule.
+
+Plan for Tomorrow:
+- Pour section 3 of the concrete foundation.
+- Begin preparations for steel beam erection.
+`;
     },
-    // --- Principal Admin ---
+    findGrants: async (keywords: string, location: string): Promise<Grant[]> => {
+        await delay(1200);
+        return [
+            { id: 1, name: 'Green Construction Innovation Fund', agency: 'Innovate UK', amount: '£50,000 - £250,000', description: 'For SMEs developing sustainable building materials and methods.', url: '#' },
+            { id: 2, name: 'Heritage Building Restoration Grant', agency: 'National Lottery Heritage Fund', amount: 'Up to £100,000', description: 'Supports the restoration of listed buildings and structures.', url: '#' }
+        ];
+    },
+    analyzeForRisks: async (text: string): Promise<RiskAnalysis> => {
+        await delay(1000);
+        return {
+            summary: "The provided text indicates potential financial risk due to unclear payment terms and compliance risk related to unspecified material standards.",
+            identifiedRisks: [
+                { severity: 'Medium', description: "Payment terms are 'Net 90' which could impact cash flow.", recommendation: "Negotiate for Net 30 or Net 60 terms, or arrange for milestone payments." },
+                { severity: 'Low', description: "Materials are specified as 'high-quality timber' without a specific grade.", recommendation: "Request clarification on the exact material grade (e.g., C16, C24) to ensure compliance and accurate costing." }
+            ]
+        };
+    },
+    generateBidPackage: async (tenderUrl: string, strengths: string): Promise<BidPackage> => {
+        await delay(1800);
+        return {
+            coverLetter: `Dear Sir/Madam,\n\nPlease find enclosed our bid for the project referenced. With over 15 years of experience and a specialization in ${strengths || 'high-quality construction'}, we are confident in our ability to deliver this project on time and within budget.\n\nSincerely,\n[Your Company]`,
+            checklist: ["Completed Bid Form", "Proof of Insurance", "Project Timeline Proposal", "Safety Record Documentation"],
+            summary: "This bid proposes a comprehensive solution for the construction project, leveraging our key strengths to ensure a successful outcome. The timeline is projected for 18 months with a focus on safety and quality."
+        };
+    },
+    
+    // Principal Admin
     getSystemHealth: async (adminId: number): Promise<SystemHealth> => {
         await delay(300);
-        return systemHealth;
+        return { uptime: '99.98%', apiHealth: { status: 'Operational', errorRate: 0.2, throughput: 1200 }, databaseHealth: { status: 'Operational', latency: 45 }, storageHealth: { status: 'Operational', capacityUsed: '72%' }};
     },
     getAllCompaniesForAdmin: async (adminId: number): Promise<Company[]> => {
         await delay(300);
-        return companies;
+        return deepCopy(data.companies);
     },
     getUsageMetrics: async (adminId: number): Promise<UsageMetric[]> => {
         await delay(400);
-        return usageMetrics;
+        return data.companies.map(c => ({ companyId: c.id, apiCalls: Math.floor(Math.random() * 50000), storageUsedGB: parseFloat(c.storageUsageGB.toFixed(2)), activeUsers: data.users.filter(u => u.companyId === c.id).length }));
     },
-    getPlatformStats: async (adminId: number): Promise<{ totalCompanies: number; totalUsers: number; activeProjects: number }> => {
-        await delay(200);
-        return {
-            totalCompanies: companies.length,
-            totalUsers: users.length,
-            activeProjects: projects.filter(p => p.status === 'Active').length,
-        };
+    getPlatformStats: async (adminId: number): Promise<any> => {
+        await delay(100);
+        return { totalCompanies: data.companies.length, totalUsers: data.users.length, activeProjects: data.projects.filter(p => p.status === 'Active').length };
     },
     getPlatformSettings: async (adminId: number): Promise<PlatformSettings> => {
         await delay(100);
-        return platformSettings;
+        return deepCopy(data.platformSettings);
+    },
+    updatePlatformSettings: async (settings: PlatformSettings, adminId: number): Promise<PlatformSettings> => {
+        await delay(300);
+        data.platformSettings = settings;
+        return deepCopy(data.platformSettings);
     },
     getPendingApprovalsForPlatform: async (adminId: number): Promise<PendingApproval[]> => {
-        await delay(300);
-        return pendingApprovals;
+        await delay(200);
+        return []; // Mock empty for now
     },
     getPlatformAuditLogs: async (adminId: number): Promise<AuditLog[]> => {
-        await delay(500);
-        return auditLogs;
+        await delay(300);
+        return deepCopy(data.auditLogs);
     },
     getPlatformAnnouncements: async (adminId: number): Promise<Announcement[]> => {
         await delay(200);
-        return announcements;
+        return deepCopy(data.announcements.filter(a => a.scope === 'platform'));
     },
-    updateCompanyStatus: async (companyId: number, status: Company['status'], actorId: number): Promise<Company> => {
+    sendAnnouncement: async (announcement: Omit<Announcement, 'id' | 'createdAt'>, adminId: number): Promise<Announcement> => {
+        await delay(300);
+        const newAnn: Announcement = { ...announcement, id: Date.now(), createdAt: new Date() };
+        data.announcements.push(newAnn);
+        return deepCopy(newAnn);
+    },
+    inviteCompany: async (companyName: string, adminEmail: string, adminId: number): Promise<void> => {
         await delay(500);
-        const company = companies.find(c => c.id === companyId);
-        if (!company) throw new Error("Company not found");
-        company.status = status;
-        logAudit(actorId, `Updated Company Status to ${status}`, { id: companyId, type: 'Company', name: company.name });
-        return company;
+        console.log(`Sending invite to ${adminEmail} for company ${companyName}`);
     },
-    updatePlatformSettings: async (settings: PlatformSettings, actorId: number): Promise<PlatformSettings> => {
-        await delay(600);
-        platformSettings = settings;
-        logAudit(actorId, 'Updated Platform Settings');
-        return platformSettings;
+    updateCompanyStatus: async (companyId: number, status: Company['status'], adminId: number): Promise<void> => {
+        await delay(300);
+        const company = data.companies.find(c => c.id === companyId);
+        if (company) company.status = status;
     },
-    inviteCompany: async (companyName: string, adminEmail: string, actorId: number): Promise<void> => {
-        await delay(1000);
-        logAudit(actorId, 'Invited New Company', { id: companyName, type: 'Company', name: companyName });
+    
+    // Templates
+    getProjectTemplates: async (companyId: number): Promise<ProjectTemplate[]> => {
+        await delay(200);
+        return deepCopy(data.projectTemplates.filter(t => t.companyId === companyId));
     },
-    // --- Misc ---
-    getWeatherForecast: async (lat: number, lng: number): Promise<{ condition: string; temperature: number; icon: string }> => {
-        await delay(700);
-        // Simple mock based on UK-ish locations
-        if (lat > 53) return { condition: 'Cloudy', temperature: 14, icon: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z' };
-        return { condition: 'Sunny', temperature: 18, icon: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z' };
+    saveProjectTemplate: async (templateData: Omit<ProjectTemplate, 'id'> | ProjectTemplate, actorId: number): Promise<ProjectTemplate> => {
+        await delay(300);
+        if ('id' in templateData) {
+            const index = data.projectTemplates.findIndex(t => t.id === templateData.id);
+            if (index > -1) {
+                data.projectTemplates[index] = templateData;
+                return deepCopy(templateData);
+            }
+        }
+        const newTemplate: ProjectTemplate = { ...templateData, id: Date.now() };
+        data.projectTemplates.push(newTemplate);
+        return deepCopy(newTemplate);
+    },
+    deleteProjectTemplate: async (templateId: number, actorId: number): Promise<void> => {
+        await delay(200);
+        data.projectTemplates = data.projectTemplates.filter(t => t.id !== templateId);
     }
 };

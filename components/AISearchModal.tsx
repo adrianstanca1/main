@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// FIX: Corrected import path
 import { User, Project, AISearchResult, Document as Doc, Role } from '../types';
+// FIX: Corrected import path
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
@@ -39,6 +41,7 @@ export const AISearchModal: React.FC<AISearchModalProps> = ({ user, currentProje
     // Fetch user's projects for the scope dropdown
     const fetchUserProjects = useCallback(async () => {
         try {
+            if(!user.companyId) return;
             let projects: Project[] = [];
             if (user.role === Role.ADMIN) {
                 projects = await api.getProjectsByCompany(user.companyId);

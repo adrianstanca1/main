@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Corrected import path
 import { User, Equipment, Project, EquipmentStatus, Permission } from '../types';
+// FIX: Corrected import path
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';

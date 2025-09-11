@@ -1,6 +1,7 @@
-// This file defines all the core data structures and types used throughout the application.
+// types.ts
 
-// --- USER & AUTHENTICATION ---
+export type View = 'dashboard' | 'projects' | 'documents' | 'safety' | 'timesheets' | 'time' | 'settings' | 'users' | 'chat' | 'tools' | 'financials' | 'equipment' | 'templates' | 'all-tasks' | 'map' | 'principal-dashboard' | 'my-day';
+
 export enum Role {
   PRINCIPAL_ADMIN = 'Principal Admin',
   ADMIN = 'Company Admin',
@@ -15,160 +16,26 @@ export interface User {
   name: string;
   email: string;
   role: Role;
-  companyId: number;
+  companyId?: number;
+  avatarUrl?: string;
 }
 
-export enum Permission {
-  // Projects
-  VIEW_ASSIGNED_PROJECTS = 'VIEW_ASSIGNED_PROJECTS',
-  VIEW_ALL_PROJECTS = 'VIEW_ALL_PROJECTS',
-  MANAGE_PROJECTS = 'MANAGE_PROJECTS', // Create, edit, delete
-  MANAGE_PROJECT_TEMPLATES = 'MANAGE_PROJECT_TEMPLATES',
-  
-  // Tasks
-  VIEW_ALL_TASKS = 'VIEW_ALL_TASKS',
-  MANAGE_TASKS = 'MANAGE_TASKS', // Create, edit, assign, change status
-  
-  // Team & Users
-  VIEW_TEAM = 'VIEW_TEAM',
-  MANAGE_TEAM = 'MANAGE_TEAM', // Invite, edit roles, deactivate
-  
-  // Timesheets
-  SUBMIT_TIMESHEET = 'SUBMIT_TIMESHEET',
-  VIEW_ALL_TIMESHEETS = 'VIEW_ALL_TIMESHEETS',
-  MANAGE_TIMESHEETS = 'MANAGE_TIMESHEETS', // Approve, reject, edit
-  
-  // Documents
-  VIEW_DOCUMENTS = 'VIEW_DOCUMENTS',
-  UPLOAD_DOCUMENTS = 'UPLOAD_DOCUMENTS',
-  MANAGE_DOCUMENTS = 'MANAGE_DOCUMENTS',
-  
-  // Safety
-  VIEW_SAFETY_REPORTS = 'VIEW_SAFETY_REPORTS',
-  SUBMIT_SAFETY_REPORT = 'SUBMIT_SAFETY_REPORT',
-  MANAGE_SAFETY_REPORTS = 'MANAGE_SAFETY_REPORTS',
-  ACCESS_SAFETY_TOOLS = 'ACCESS_SAFETY_TOOLS',
-
-  // Financials
-  VIEW_FINANCES = 'VIEW_FINANCES',
-  MANAGE_FINANCES = 'MANAGE_FINANCES', // Create invoices, quotes
-  
-  // Equipment
-  VIEW_EQUIPMENT = 'VIEW_EQUIPMENT',
-  MANAGE_EQUIPMENT = 'MANAGE_EQUIPMENT',
-  
-  // Communication
-  SEND_ANNOUNCEMENT = 'SEND_ANNOUNCEMENT',
-  SEND_DIRECT_MESSAGE = 'SEND_DIRECT_MESSAGE',
-
-  // Tools
-  ACCESS_ALL_TOOLS = 'ACCESS_ALL_TOOLS',
-}
-
-export const RolePermissions: Record<Role, Set<Permission>> = {
-  [Role.PRINCIPAL_ADMIN]: new Set(Object.values(Permission)), // Has all permissions
-  [Role.ADMIN]: new Set([
-    Permission.VIEW_ALL_PROJECTS,
-    Permission.MANAGE_PROJECTS,
-    Permission.MANAGE_PROJECT_TEMPLATES,
-    Permission.VIEW_ALL_TASKS,
-    Permission.MANAGE_TASKS,
-    Permission.VIEW_TEAM,
-    Permission.MANAGE_TEAM,
-    Permission.VIEW_ALL_TIMESHEETS,
-    Permission.MANAGE_TIMESHEETS,
-    Permission.VIEW_DOCUMENTS,
-    Permission.UPLOAD_DOCUMENTS,
-    Permission.MANAGE_DOCUMENTS,
-    Permission.VIEW_SAFETY_REPORTS,
-    Permission.SUBMIT_SAFETY_REPORT,
-    Permission.MANAGE_SAFETY_REPORTS,
-    Permission.ACCESS_SAFETY_TOOLS,
-    Permission.VIEW_FINANCES,
-    Permission.MANAGE_FINANCES,
-    Permission.VIEW_EQUIPMENT,
-    Permission.MANAGE_EQUIPMENT,
-    Permission.SEND_ANNOUNCEMENT,
-    Permission.SEND_DIRECT_MESSAGE,
-    Permission.ACCESS_ALL_TOOLS,
-  ]),
-  [Role.PM]: new Set([
-    Permission.VIEW_ASSIGNED_PROJECTS,
-    Permission.VIEW_ALL_PROJECTS, // PMs can often see all projects
-    Permission.MANAGE_PROJECTS,
-    Permission.VIEW_ALL_TASKS,
-    Permission.MANAGE_TASKS,
-    Permission.VIEW_TEAM,
-    Permission.VIEW_ALL_TIMESHEETS,
-    Permission.MANAGE_TIMESHEETS,
-    Permission.VIEW_DOCUMENTS,
-    Permission.UPLOAD_DOCUMENTS,
-    Permission.VIEW_SAFETY_REPORTS,
-    Permission.SUBMIT_SAFETY_REPORT,
-    Permission.MANAGE_SAFETY_REPORTS,
-    Permission.ACCESS_SAFETY_TOOLS,
-    Permission.VIEW_EQUIPMENT,
-    Permission.MANAGE_EQUIPMENT,
-    Permission.SEND_DIRECT_MESSAGE,
-    Permission.ACCESS_ALL_TOOLS,
-  ]),
-  [Role.FOREMAN]: new Set([
-    Permission.VIEW_ASSIGNED_PROJECTS,
-    Permission.MANAGE_TASKS,
-    Permission.VIEW_TEAM,
-    Permission.SUBMIT_TIMESHEET,
-    Permission.MANAGE_TIMESHEETS, // Can approve for their crew
-    Permission.VIEW_DOCUMENTS,
-    Permission.VIEW_SAFETY_REPORTS,
-    Permission.SUBMIT_SAFETY_REPORT,
-    Permission.VIEW_EQUIPMENT,
-    Permission.SEND_DIRECT_MESSAGE,
-  ]),
-  [Role.OPERATIVE]: new Set([
-    Permission.VIEW_ASSIGNED_PROJECTS,
-    Permission.SUBMIT_TIMESHEET,
-    Permission.VIEW_DOCUMENTS,
-    Permission.VIEW_SAFETY_REPORTS,
-    Permission.SUBMIT_SAFETY_REPORT,
-    Permission.SEND_DIRECT_MESSAGE,
-  ]),
-  [Role.SAFETY_OFFICER]: new Set([
-      Permission.VIEW_ALL_PROJECTS,
-      Permission.VIEW_ALL_TASKS,
-      Permission.VIEW_TEAM,
-      Permission.VIEW_DOCUMENTS,
-      Permission.VIEW_SAFETY_REPORTS,
-      Permission.SUBMIT_SAFETY_REPORT,
-      Permission.MANAGE_SAFETY_REPORTS,
-      Permission.ACCESS_SAFETY_TOOLS,
-      Permission.SEND_DIRECT_MESSAGE,
-  ]),
-};
-
-// --- COMPANY & TENANT ---
 export interface Company {
-    id: number;
-    name: string;
-    status: 'Active' | 'Suspended' | 'Archived';
-    subscriptionPlan: 'Basic' | 'Pro' | 'Enterprise';
-    storageUsageGB: number;
-}
-export interface Client {
   id: number;
-  companyId: number;
   name: string;
-  contactEmail: string;
-  contactPhone: string;
+  status: 'Active' | 'Suspended' | 'Archived';
+  subscriptionPlan: string;
+  storageUsageGB: number;
   createdAt: Date;
 }
 
-// --- PROJECT & TASKS ---
 export interface Location {
-    address: string;
-    lat: number;
-    lng: number;
-    accuracy?: number;
+  address: string;
+  lat: number;
+  lng: number;
+  accuracy?: number;
 }
+
 export interface Project {
   id: number;
   companyId: number;
@@ -177,145 +44,151 @@ export interface Project {
   budget: number;
   actualCost: number;
   startDate: Date;
-  imageUrl: string;
+  endDate?: Date;
   status: 'Active' | 'On Hold' | 'Completed';
+  imageUrl: string;
   projectType: string;
   workClassification: string;
   geofenceRadius?: number; // in meters
 }
+
 export enum TodoStatus {
   TODO = 'To Do',
   IN_PROGRESS = 'In Progress',
   DONE = 'Done',
 }
+
 export enum TodoPriority {
-  LOW = 'Low',
-  MEDIUM = 'Medium',
   HIGH = 'High',
+  MEDIUM = 'Medium',
+  LOW = 'Low',
 }
-export interface Comment {
-    id: number | string;
-    creatorId: number;
-    text: string;
-    createdAt: Date;
-    isOffline?: boolean;
-}
+
 export interface SubTask {
-    id: number;
-    text: string;
-    completed: boolean;
-}
-export interface Todo {
-  id: number | string; // string for optimistic offline tasks
+  id: number;
   text: string;
-  projectId: number;
+  completed: boolean;
+}
+
+export interface Comment {
+  id: number | string;
   creatorId: number;
-  assigneeId?: number;
+  text: string;
+  createdAt: Date;
+  isOffline?: boolean;
+}
+
+export interface Todo {
+  id: number | string;
+  projectId: number;
+  text: string;
   status: TodoStatus;
   priority: TodoPriority;
-  dueDate?: Date;
+  creatorId: number;
+  assigneeId?: number;
   createdAt: Date;
+  dueDate?: Date;
   completedAt?: Date;
-  comments?: Comment[];
-  subTasks?: SubTask[];
   dependsOn?: number;
+  subTasks?: SubTask[];
+  comments?: Comment[];
   isOffline?: boolean;
   reminderAt?: Date;
 }
 
-// --- TIME & LOCATION ---
-export enum WorkType {
-  GENERAL_LABOR = 'General Labor',
-  EQUIPMENT_OPERATION = 'Equipment Operation',
-  SITE_PREP = 'Site Prep',
-  SUPERVISION = 'Supervision',
+export enum DocumentStatus {
+  UPLOADING = 'Uploading',
+  SCANNING = 'Scanning',
+  APPROVED = 'Approved',
+  QUARANTINED = 'Quarantined',
 }
+
+export enum DocumentCategory {
+  GENERAL = 'General',
+  BLUEPRINTS = 'Blueprints',
+  PERMITS = 'Permits',
+  HS = 'Health & Safety',
+  CONTRACTS = 'Contracts',
+  PHOTOS = 'Site Photos',
+}
+
+export interface Document {
+  id: number;
+  projectId: number;
+  name: string;
+  category: DocumentCategory;
+  url: string;
+  status: DocumentStatus;
+  uploadedAt: Date;
+  creatorId: number;
+  version: number;
+  isOffline?: boolean;
+}
+
+export interface DocumentAcknowledgement {
+  id: number;
+  userId: number;
+  documentId: number;
+  acknowledgedAt: Date;
+}
+
 export enum TimesheetStatus {
   PENDING = 'Pending',
   APPROVED = 'Approved',
   REJECTED = 'Rejected',
-  FLAGGED = 'Flagged', // For issues like geofence mismatch
+  FLAGGED = 'Flagged',
 }
+
+export enum WorkType {
+    GENERAL_LABOR = 'General Labor',
+    EQUIPMENT_OPERATION = 'Equipment Operation',
+    SITE_MANAGEMENT = 'Site Management',
+}
+
+export interface Break {
+  startTime: Date;
+  endTime: Date | null;
+}
+
 export interface Timesheet {
   id: number;
   userId: number;
   projectId: number;
   clockIn: Date;
   clockOut: Date | null;
-  breaks: { startTime: Date; endTime: Date | null }[];
   workType: WorkType;
   status: TimesheetStatus;
   comment?: string;
   rejectionReason?: string;
   clockInLocation?: Location;
   clockOutLocation?: Location;
-  trustScore?: number;
-  trustReasons?: Record<string, string>;
   checkInPhotoUrl?: string;
+  checkOutPhotoUrl?: string;
+  breaks: Break[];
+  trustScore?: number;
+  trustReasons?: { [key: string]: string };
 }
 
-// --- DOCUMENTS ---
-export enum DocumentCategory {
-  GENERAL = 'General',
-  DRAWINGS = 'Drawings',
-  PERMITS = 'Permits',
-  RFIS = 'RFIs',
-  SUBMITTALS = 'Submittals',
-  HS = 'Health & Safety', // H&S
-  FINANCIAL = 'Financial',
-}
-export enum DocumentStatus {
-  APPROVED = 'Approved',
-  UPLOADING = 'Uploading',
-  SCANNING = 'Scanning',
-  QUARANTINED = 'Quarantined',
-}
-export interface Document {
-  id: number;
-  name: string;
-  projectId: number;
-  category: DocumentCategory;
-  status: DocumentStatus;
-  uploadedAt: Date;
-  version: number;
-  url: string;
-  creatorId: number;
-  isOffline?: boolean;
-}
-export interface DocumentAcknowledgement {
-  id: number;
-  userId: number;
-  documentId: number;
-  timestamp: Date;
-}
-export interface ProjectPhoto {
-    id: number;
-    projectId: number;
-    uploaderId: number;
-    url: string;
-    caption: string;
-    timestamp: Date;
-}
-
-// --- SAFETY ---
-export enum IncidentSeverity {
-  LOW = 'Low',
-  MEDIUM = 'Medium',
-  HIGH = 'High',
-  CRITICAL = 'Critical',
-}
-export enum IncidentType {
-  HAZARD_OBSERVATION = 'Hazard Observation',
-  NEAR_MISS = 'Near Miss',
-  PROPERTY_DAMAGE = 'Property Damage',
-  INJURY = 'Injury',
-  ENVIRONMENTAL = 'Environmental',
-}
 export enum IncidentStatus {
   REPORTED = 'Reported',
   UNDER_REVIEW = 'Under Review',
   RESOLVED = 'Resolved',
 }
+
+export enum IncidentSeverity {
+  CRITICAL = 'Critical',
+  HIGH = 'High',
+  MEDIUM = 'Medium',
+  LOW = 'Low',
+}
+
+export enum IncidentType {
+  INJURY = 'Injury',
+  NEAR_MISS = 'Near Miss',
+  HAZARD_OBSERVATION = 'Hazard Observation',
+  PROPERTY_DAMAGE = 'Property Damage',
+}
+
 export interface SafetyIncident {
   id: number;
   projectId: number;
@@ -326,24 +199,189 @@ export interface SafetyIncident {
   description: string;
   locationOnSite: string;
   status: IncidentStatus;
+  resolvedAt?: Date;
+  actionsTaken?: string;
 }
+
+export enum EquipmentStatus {
+    AVAILABLE = 'Available',
+    IN_USE = 'In Use',
+    MAINTENANCE = 'Maintenance',
+}
+
+export interface Equipment {
+    id: number;
+    companyId: number;
+    name: string;
+    type: string;
+    status: EquipmentStatus;
+    projectId?: number;
+}
+
 export interface OperativeReport {
-  id: number;
-  projectId: number;
-  userId: number;
-  notes: string;
-  photoUrl?: string;
-  timestamp: Date;
+    id: number;
+    projectId: number;
+    userId: number;
+    submittedAt: Date;
+    notes: string;
+    photoUrl?: string;
 }
 
+export interface WeatherForecast {
+    temperature: number;
+    condition: string;
+    icon: string; // SVG path data
+}
 
-// --- FINANCIALS ---
+export interface ProjectAssignment {
+    projectId: number;
+    userId: number;
+}
+
 export interface FinancialKPIs {
   profitability: number;
   projectMargin: number;
   cashFlow: number;
   currency: 'USD' | 'GBP';
 }
+
+export interface PendingApproval {
+  id: number;
+  companyId: number;
+  type: 'Timesheet' | 'Invoice' | 'New Company';
+  description: string;
+  submittedAt: Date;
+}
+
+export enum AuditLogAction {
+    USER_LOGIN = 'USER_LOGIN',
+    PROJECT_CREATED = 'PROJECT_CREATED',
+    TASK_COMPLETED = 'TASK_COMPLETED',
+    DOCUMENT_UPLOADED = 'DOCUMENT_UPLOADED',
+    TIMESHEET_APPROVED = 'TIMESHEET_APPROVED',
+    SAFETY_INCIDENT_REPORTED = 'SAFETY_INCIDENT_REPORTED'
+}
+
+export interface AuditLog {
+    id: number;
+    actorId: number;
+    action: string;
+    timestamp: Date;
+    target?: { id: number | string; type: string; name: string };
+    projectId?: number;
+    companyId?: number;
+}
+
+export interface Announcement {
+    id: number;
+    senderId: number;
+    scope: 'platform' | 'company';
+    title: string;
+    content: string;
+    createdAt: Date;
+}
+
+// Permissions system
+export enum Permission {
+  VIEW_ALL_PROJECTS = 'VIEW_ALL_PROJECTS',
+  VIEW_ASSIGNED_PROJECTS = 'VIEW_ASSIGNED_PROJECTS',
+  MANAGE_PROJECTS = 'MANAGE_PROJECTS',
+  MANAGE_PROJECT_TEMPLATES = 'MANAGE_PROJECT_TEMPLATES',
+  
+  VIEW_ALL_TASKS = 'VIEW_ALL_TASKS',
+  MANAGE_TASKS = 'MANAGE_TASKS',
+
+  SUBMIT_TIMESHEET = 'SUBMIT_TIMESHEET',
+  VIEW_OWN_TIMESHEETS = 'VIEW_OWN_TIMESHEETS',
+  VIEW_ALL_TIMESHEETS = 'VIEW_ALL_TIMESHEETS',
+  MANAGE_TIMESHEETS = 'MANAGE_TIMESHEETS',
+
+  VIEW_DOCUMENTS = 'VIEW_DOCUMENTS',
+  UPLOAD_DOCUMENTS = 'UPLOAD_DOCUMENTS',
+  MANAGE_DOCUMENTS = 'MANAGE_DOCUMENTS',
+  
+  SUBMIT_SAFETY_REPORT = 'SUBMIT_SAFETY_REPORT',
+  VIEW_SAFETY_REPORTS = 'VIEW_SAFETY_REPORTS',
+  MANAGE_SAFETY_REPORTS = 'MANAGE_SAFETY_REPORTS',
+
+  VIEW_TEAM = 'VIEW_TEAM',
+  MANAGE_TEAM = 'MANAGE_TEAM',
+
+  VIEW_FINANCES = 'VIEW_FINANCES',
+  MANAGE_FINANCES = 'MANAGE_FINANCES',
+  
+  MANAGE_EQUIPMENT = 'MANAGE_EQUIPMENT',
+  
+  SEND_DIRECT_MESSAGE = 'SEND_DIRECT_MESSAGE',
+  
+  ACCESS_ALL_TOOLS = 'ACCESS_ALL_TOOLS',
+}
+
+export const RolePermissions: Record<Role, Set<Permission>> = {
+  [Role.PRINCIPAL_ADMIN]: new Set(Object.values(Permission)),
+  [Role.ADMIN]: new Set([
+    Permission.VIEW_ALL_PROJECTS, Permission.MANAGE_PROJECTS, Permission.MANAGE_PROJECT_TEMPLATES,
+    Permission.VIEW_ALL_TASKS, Permission.MANAGE_TASKS,
+    Permission.VIEW_ALL_TIMESHEETS, Permission.MANAGE_TIMESHEETS,
+    Permission.VIEW_DOCUMENTS, Permission.UPLOAD_DOCUMENTS, Permission.MANAGE_DOCUMENTS,
+    Permission.VIEW_SAFETY_REPORTS, Permission.MANAGE_SAFETY_REPORTS,
+    Permission.VIEW_TEAM, Permission.MANAGE_TEAM,
+    Permission.VIEW_FINANCES, Permission.MANAGE_FINANCES,
+    Permission.MANAGE_EQUIPMENT,
+    Permission.SEND_DIRECT_MESSAGE,
+    Permission.ACCESS_ALL_TOOLS
+  ]),
+  [Role.PM]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS, Permission.MANAGE_PROJECTS,
+    Permission.VIEW_ALL_TASKS, Permission.MANAGE_TASKS,
+    Permission.VIEW_ALL_TIMESHEETS, Permission.MANAGE_TIMESHEETS,
+    Permission.VIEW_DOCUMENTS, Permission.UPLOAD_DOCUMENTS,
+    Permission.VIEW_SAFETY_REPORTS, Permission.MANAGE_SAFETY_REPORTS,
+    Permission.VIEW_TEAM,
+    Permission.SEND_DIRECT_MESSAGE,
+    Permission.ACCESS_ALL_TOOLS
+  ]),
+  [Role.SAFETY_OFFICER]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS,
+    Permission.VIEW_SAFETY_REPORTS, Permission.MANAGE_SAFETY_REPORTS,
+    Permission.SUBMIT_SAFETY_REPORT,
+    Permission.VIEW_DOCUMENTS,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+  [Role.FOREMAN]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS,
+    Permission.MANAGE_TASKS,
+    Permission.SUBMIT_TIMESHEET, Permission.VIEW_OWN_TIMESHEETS,
+    Permission.VIEW_DOCUMENTS,
+    Permission.SUBMIT_SAFETY_REPORT,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+  [Role.OPERATIVE]: new Set([
+    Permission.VIEW_ASSIGNED_PROJECTS,
+    Permission.SUBMIT_TIMESHEET, Permission.VIEW_OWN_TIMESHEETS,
+    Permission.VIEW_DOCUMENTS,
+    Permission.SUBMIT_SAFETY_REPORT,
+    Permission.SEND_DIRECT_MESSAGE,
+  ]),
+};
+
+export interface AISearchResult {
+  summary: string;
+  sources: {
+    documentId: number;
+    snippet: string;
+  }[];
+}
+
+export interface Client {
+  id: number;
+  companyId: number;
+  name: string;
+  contactEmail: string;
+  contactPhone: string;
+  createdAt: Date;
+}
+
 export enum InvoiceStatus {
   DRAFT = 'Draft',
   SENT = 'Sent',
@@ -351,67 +389,46 @@ export enum InvoiceStatus {
   OVERDUE = 'Overdue',
   VOID = 'Void',
 }
+
+export interface InvoiceLineItem {
+  id: number | string;
+  description: string;
+  quantity: number;
+  rate: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: number;
+  companyId: number;
+  clientId: number;
+  projectId: number;
+  status: InvoiceStatus;
+  total: number;
+  amountDue: number;
+  issuedAt: Date;
+  dueAt: Date;
+  items: InvoiceLineItem[];
+}
+
 export enum QuoteStatus {
   DRAFT = 'Draft',
   SENT = 'Sent',
   ACCEPTED = 'Accepted',
   REJECTED = 'Rejected',
 }
-export interface InvoiceLineItem {
-    id: string; // temp id for UI
-    description: string;
-    quantity: number;
-    rate: number;
-    total: number;
-}
-export interface Invoice {
-  id: number;
-  companyId: number;
-  clientId: number;
-  projectId: number;
-  total: number;
-  amountDue: number;
-  issuedAt: Date;
-  dueAt: Date;
-  status: InvoiceStatus;
-  items: InvoiceLineItem[];
-}
+
 export interface Quote {
   id: number;
   companyId: number;
   clientId: number;
   projectId: number;
+  status: QuoteStatus;
   total: number;
   issuedAt: Date;
   validUntil: Date;
-  status: QuoteStatus;
-}
-export interface MonthlyFinancials {
-    month: string;
-    revenue: number;
-    costs: number;
-    profit: number;
-}
-export interface CostBreakdown {
-    category: 'Labor' | 'Materials' | 'Subcontractors' | 'Permits' | 'Other';
-    amount: number;
 }
 
-
-// --- EQUIPMENT & RESOURCES ---
-export enum EquipmentStatus {
-  AVAILABLE = 'Available',
-  IN_USE = 'In Use',
-  MAINTENANCE = 'Maintenance',
-}
-export interface Equipment {
-  id: number;
-  companyId: number;
-  name: string;
-  type: string;
-  status: EquipmentStatus;
-  projectId?: number;
-}
 export interface ResourceAssignment {
   id: number;
   companyId: number;
@@ -422,90 +439,85 @@ export interface ResourceAssignment {
   endDate: Date;
 }
 
-
-// --- UI & MISC ---
-export type View = 'dashboard' | 'projects' | 'documents' | 'safety' | 'timesheets' | 'time' | 'settings' | 'users' | 'chat' | 'tools' | 'financials' | 'equipment' | 'templates' | 'all-tasks' | 'map' | 'principal-dashboard';
-
 export enum UserStatus {
-    ON_SITE = 'On Site',
-    ON_BREAK = 'On Break',
-    OFF_SITE = 'Off Site',
-}
-export interface ProjectAssignment {
-    id: number;
-    userId: number;
-    projectId: number;
-    projectRole: ProjectRole;
-}
-export enum ProjectRole {
-    MANAGER = 'Manager',
-    FOREMAN = 'Foreman',
-    OPERATIVE = 'Operative',
-    SAFETY_LEAD = 'Safety Lead',
-    SURVEYOR = 'Surveyor'
-}
-export interface WeatherForecast {
-    condition: string;
-    temperature: number; // Celsius
-    icon: string; // SVG path data
+  ON_SITE = 'On Site',
+  OFF_SITE = 'Off Site',
+  ON_BREAK = 'On Break',
 }
 
-// --- Communication ---
-export interface Announcement {
-  id: number;
-  senderId: number;
-  scope: 'platform' | 'company';
-  companyId?: number;
-  title: string;
-  content: string;
-  createdAt: Date;
+export interface MonthlyFinancials {
+    month: string;
+    revenue: number;
+    costs: number;
+    profit: number;
 }
+
+export interface CostBreakdown {
+    category: string;
+    amount: number;
+}
+
+export interface SystemHealth {
+    uptime: string;
+    apiHealth: { status: string; errorRate: number; throughput: number };
+    databaseHealth: { status: string; latency: number };
+    storageHealth: { status: string; capacityUsed: string };
+}
+
+export interface UsageMetric {
+    companyId: number;
+    apiCalls: number;
+    storageUsedGB: number;
+    activeUsers: number;
+}
+
+export interface PlatformSettings {
+    mfaRequired: boolean;
+    newTenantOnboardingWorkflow: 'manual' | 'auto';
+    defaultStorageQuotaGB: number;
+    logRetentionDays: number;
+}
+
 export interface Conversation {
   id: number;
   participants: number[];
   messages: ChatMessage[];
   lastMessage: ChatMessage | null;
 }
+
 export interface ChatMessage {
   id: number;
-  conversationId: number;
   senderId: number;
   content: string;
   timestamp: Date;
   isRead: boolean;
 }
 
-// --- AI & Tools ---
-export enum ToolStatus {
-  ACTIVE = 'Active',
-  NEW = 'New',
-  MAINTENANCE = 'Maintenance',
-  COMING_SOON = 'Coming Soon',
-  DEV_PHASE = 'In Development',
-}
-export interface Tool {
-  id: string;
+export interface ProjectTemplate {
+  id: number;
+  companyId: number;
   name: string;
   description: string;
-  icon: string; // SVG path
-  status: ToolStatus;
-  tags: string[]; // e.g., ['AI', 'Finance']
+  templateTasks: TemplateTask[];
+  documentCategories: DocumentCategory[];
+  safetyProtocols: string[];
 }
-export interface AISearchResult {
-  summary: string;
-  sources: {
-    documentId: number;
-    snippet: string;
-  }[];
+
+export interface TemplateTask {
+  id: string; // Temporary ID for UI
+  text: string;
+  priority: TodoPriority;
 }
+
 export interface Grant {
-    id: string;
+    id: number;
     name: string;
     agency: string;
     amount: string;
     description: string;
     url: string;
 }
+
 export interface RiskAnalysis {
     summary: string;
     identifiedRisks: {
@@ -514,75 +526,27 @@ export interface RiskAnalysis {
         recommendation: string;
     }[];
 }
+
 export interface BidPackage {
     coverLetter: string;
     checklist: string[];
     summary: string;
 }
 
-// --- TEMPLATES ---
-export interface TemplateTask {
-    id: string;
-    text: string;
-    priority: TodoPriority;
-}
-export interface ProjectTemplate {
-    id: number;
-    companyId: number;
-    name: string;
-    description: string;
-    templateTasks: TemplateTask[];
-    documentCategories: DocumentCategory[];
-    safetyProtocols: string[];
-}
-
-// --- PRINCIPAL ADMIN ---
-export interface SystemHealth {
-  uptime: string;
-  apiHealth: { status: string; throughput: number; errorRate: number };
-  databaseHealth: { status: string; latency: number };
-  storageHealth: { status: string; totalUsedGB: number };
-}
-export interface UsageMetric {
-  companyId: number;
-  apiCalls: number;
-  storageUsedGB: number;
-  activeUsers: number;
-}
-export interface PlatformSettings {
-    newTenantOnboardingWorkflow: 'manual' | 'auto';
-    defaultStorageQuotaGB: number;
-    mfaRequired: boolean;
-    logRetentionDays: number;
-}
-export interface PendingApproval {
-  id: number;
-  companyId: number;
-  type: 'New Company' | 'Plan Upgrade';
-  description: string;
-}
-export interface AuditLog {
-  id: number;
-  timestamp: Date;
-  actorId: number;
-  action: AuditLogAction;
-  target?: { id: number | string; type: string; name: string };
-  projectId?: number;
-}
-export type AuditLogAction = string;
-
-// --- SETTINGS ---
 export interface NotificationPreferences {
     projectUpdates: boolean;
     timeReminders: boolean;
     photoRequirements: boolean;
 }
+
 export interface LocationPreferences {
     gpsAccuracy: 'standard' | 'high';
     backgroundTracking: boolean;
     locationHistoryDays: 30 | 60 | 90;
 }
+
 export interface CompanySettings {
+    id: number;
     companyId: number;
     theme: 'light' | 'dark';
     notificationPreferences: NotificationPreferences;

@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+// FIX: Corrected import path
 import { User, Document as Doc, Project, Role, DocumentCategory, DocumentStatus, DocumentAcknowledgement } from '../types';
+// FIX: Corrected import path
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { DocumentStatusBadge } from './ui/StatusBadge';
@@ -53,6 +55,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({ user, addToast, is
         // Don't set loading to true on refetch, only on initial load
         // setLoading(true); 
         try {
+            if(!user.companyId) return;
             let docsPromise;
             let projectsPromise;
             

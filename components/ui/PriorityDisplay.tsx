@@ -1,4 +1,5 @@
 import React from 'react';
+// FIX: Corrected import path
 import { TodoPriority } from '../../types';
 
 export const PriorityDisplay: React.FC<{ priority: TodoPriority }> = ({ priority }) => {

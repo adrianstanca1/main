@@ -131,7 +131,6 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({ user, templat
                                 <div key={task.id} className="flex gap-2 items-center">
                                     <input value={task.text} onChange={e => handleTaskChange(task.id, 'text', e.target.value)} placeholder="Task description..." className="flex-grow p-2 border rounded-md" />
                                     <select value={task.priority} onChange={e => handleTaskChange(task.id, 'priority', e.target.value)} className="p-2 border rounded-md bg-white">
-                                        {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
                                         {Object.values(TodoPriority).map(p => <option key={String(p)} value={p}>{p}</option>)}
                                     </select>
                                     <Button variant="ghost" onClick={() => handleRemoveTask(task.id)}>Remove</Button>
@@ -144,7 +143,6 @@ const TemplateEditorModal: React.FC<TemplateEditorModalProps> = ({ user, templat
                     <div>
                          <h3 className="text-lg font-semibold text-slate-700 mb-2 border-t pt-4">Required Document Categories</h3>
                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {/* FIX: Use String() for enum keys in map to prevent potential type errors. */}
                             {Object.values(DocumentCategory).map(cat => (
                                 <label key={String(cat)} className="flex items-center gap-2 p-2 border rounded-md has-[:checked]:bg-sky-50 has-[:checked]:border-sky-500">
                                     <input type="checkbox" checked={documentCategories.has(cat)} onChange={() => handleCategoryToggle(cat)} className="h-4 w-4 rounded" />
@@ -240,7 +238,6 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
     const handleDelete = async (templateId: number) => {
         if (window.confirm("Are you sure you want to delete this template? This action cannot be undone.")) {
             try {
-                // FIX: Completed the API call to delete the project template.
                 await api.deleteProjectTemplate(templateId, user.id);
                 addToast("Template deleted.", "success");
                 fetchData();
@@ -261,7 +258,6 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({ user, addToast }) 
         }
     };
 
-    // FIX: Added the main render block for the component.
     return (
         <div className="space-y-6">
             {isEditorOpen && (

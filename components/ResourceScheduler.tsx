@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+// FIX: Corrected import path
 import { User, Project, Equipment, ResourceAssignment } from '../types';
+// FIX: Corrected import path
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 
@@ -26,6 +28,7 @@ export const ResourceScheduler: React.FC<ResourceSchedulerProps> = ({ user }) =>
         const fetchData = async () => {
             setLoading(true);
             try {
+                if(!user.companyId) return;
                 const [assignData, projData, userData, equipData] = await Promise.all([
                     api.getResourceAssignments(user.companyId),
                     api.getProjectsByCompany(user.companyId),

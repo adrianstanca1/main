@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+// FIX: Corrected import path
 import { Todo, TodoStatus, TodoPriority, User } from '../types';
 import { PriorityDisplay } from './ui/PriorityDisplay';
 import { ReminderControl } from './ReminderControl';
@@ -59,7 +60,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ todo, allTodos, onSelect, ca
         const classes = [];
         
         if (isBlocked) {
-            classes.push('opacity-60');
+            classes.push('opacity-60 grayscale');
         } else if (todo.isOffline) {
             classes.push('opacity-75');
         }
