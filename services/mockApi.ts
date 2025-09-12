@@ -5,7 +5,7 @@ import {
   Company, CompanySettings, Permission, Role, Conversation, ChatMessage,
   Client, Invoice, Quote, ProjectTemplate, ResourceAssignment, AISearchResult, AuditLog,
   FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus,
-  EquipmentStatus, ProjectAssignment, TodoPriority, TodoStatus
+  EquipmentStatus, ProjectAssignment, TodoPriority, TodoStatus, ProjectHealth
 } from '../types';
 import { db } from './mockData';
 import { hasPermission } from './auth';
@@ -374,5 +374,66 @@ export const api = {
 3.  **Long-term:** Consider revising work schedules to include a second short break in the mid-afternoon.
       `});
   },
+  getProjectHealth: async (project: Project, overdueTaskCount: number): Promise<ProjectHealth> => {
+    if (!process.env.API_KEY) {
+        // Fallback for when API key is not available
+        if (overdueTaskCount > 5 || project.actualCost > project.budget * 1.1) {
+            return { status: 'At Risk', summary: 'Significantly over budget or has many overdue tasks.' };
+        }
+        if (overdueTaskCount > 0 || project.actualCost > project.budget) {
+            return { status: 'Needs Attention', summary: 'Slightly over budget or has some overdue tasks.' };
+        }
+        return { status: 'Good', summary: 'Project is on track regarding budget and schedule.' };
+    }
 
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const prompt = `
+        Analyze the health of the following construction project based on these key metrics.
+        - Project Name: "${project.name}"
+        - Budget: £${project.budget.toLocaleString()}
+        - Actual Cost to Date: £${project.actualCost.toLocaleString()}
+        - Number of Overdue Tasks: ${overdueTaskCount}
+
+        Based on this data, provide a project health status and a brief, one-sentence summary.
+        The status must be one of: "Good", "Needs Attention", or "At Risk".
+        - "Good": The project is on or under budget and has no overdue tasks.
+        - "Needs Attention": The project is slightly over budget (e.g., up to 10% over) or has a few overdue tasks (1-5).
+        - "At Risk": The project is significantly over budget (e.g., >10% over) or has many overdue tasks (>5).
+
+        Return the result as a single JSON object. Do not include any other text or explanation.
+    `;
+
+    try {
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        status: { type: Type.STRING, enum: ['Good', 'Needs Attention', 'At Risk'] },
+                        summary: { type: Type.STRING }
+                    },
+                    required: ['status', 'summary']
+                }
+            }
+        });
+
+        const jsonStr = response.text;
+        return JSON.parse(jsonStr) as ProjectHealth;
+
+    } catch (error) {
+        console.error("AI project health check failed:", error);
+        // Fallback logic in case of API error
+        if (overdueTaskCount > 5 || project.actualCost > project.budget * 1.1) {
+            return { status: 'At Risk', summary: 'Significantly over budget or has many overdue tasks.' };
+        }
+        if (overdueTaskCount > 0 || project.actualCost > project.budget) {
+            return { status: 'Needs Attention', summary: 'Slightly over budget or has some overdue tasks.' };
+        }
+        return { status: 'Good', summary: 'Project is on track regarding budget and schedule.' };
+    }
+  },
 };

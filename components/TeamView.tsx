@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // FIX: Corrected import paths to be relative.
 import { User, Role, Permission, Project, Timesheet, AuditLog, TimesheetStatus, ProjectAssignment, Todo, TodoStatus, UserStatus } from '../types';
@@ -8,27 +9,13 @@ import { Button } from './ui/Button';
 import { UserStatusBadge, TimesheetStatusBadge } from './ui/StatusBadge';
 import { Tag } from './ui/Tag';
 import { MapView, MapMarker } from './MapView';
+import { Avatar } from './ui/Avatar';
 
 interface TeamViewProps {
   user: User;
   addToast: (message: string, type: 'success' | 'error') => void;
   onStartChat: (user: User) => void;
 }
-
-const Avatar: React.FC<{ name: string; className?: string }> = ({ name, className = '' }) => {
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
 
 const formatDistanceToNow = (date: Date): string => {
     const seconds = Math.floor((new Date().getTime() - new Date(date).getTime()) / 1000);

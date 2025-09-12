@@ -396,6 +396,11 @@ export enum Permission {
     SEND_DIRECT_MESSAGE = 'SEND_DIRECT_MESSAGE',
 }
 
+export interface ProjectHealth {
+    status: 'Good' | 'Needs Attention' | 'At Risk';
+    summary: string;
+}
+
 export const RolePermissions: Record<Role, Set<Permission>> = {
     [Role.PRINCIPAL_ADMIN]: new Set(Object.values(Permission)), // Has all permissions implicitly
     [Role.ADMIN]: new Set([

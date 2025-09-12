@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 // FIX: Corrected import path to be relative.
 import { User } from '../../types';
+import { Avatar } from '../ui/Avatar';
 
 interface HeaderProps {
   user: User;
@@ -10,21 +11,6 @@ interface HeaderProps {
   onSearchClick: () => void;
   onCommandPaletteClick: () => void;
 }
-
-const Avatar: React.FC<{ name: string, className?: string }> = ({ name, className = '' }) => {
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
 
 export const Header: React.FC<HeaderProps> = ({ user, onLogout, onSearchClick, onCommandPaletteClick }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L, { LatLngBoundsExpression } from 'leaflet';
 import useSupercluster from 'use-supercluster';
+import { Button } from './ui/Button';
 
 // Fix for default Leaflet icon path issues with bundlers
 // @ts-ignore
@@ -67,6 +68,7 @@ const ClusterMapItems: React.FC<{ markers: MapMarker[] }> = ({ markers }) => {
     const map = useMap();
     const [bounds, setBounds] = useState<any>(null);
     const [zoom, setZoom] = useState(12);
+    const [clusterPopup, setClusterPopup] = useState<{ lat: number; lng: number; content: React.ReactNode } | null>(null);
 
     useEffect(() => {
         const updateMapState = () => {
@@ -113,17 +115,53 @@ const ClusterMapItems: React.FC<{ markers: MapMarker[] }> = ({ markers }) => {
                                 className: 'bg-transparent border-none',
                                 iconSize: [40, 40]
                             })}
-                            eventHandlers={{
-                                click: () => {
-                                    if(supercluster) {
-                                        const expansionZoom = Math.min(
-                                            supercluster.getClusterExpansionZoom(cluster.id as number),
-                                            20
-                                        );
-                                        map.setView([latitude, longitude], expansionZoom, { animate: true });
-                                    }
-                                }
-                            }}
+                            // FIX: Replaced 'eventHandlers' with 'onClick' to fix type error.
+                            // The 'eventHandlers' prop is not recognized by this version's types.
+                            onClick={() => {
+                                    if (!supercluster) return;
+
+                                    const leaves = supercluster.getLeaves(cluster.id as number, 25);
+                                    const totalLeaves = properties.point_count;
+                                    
+                                    const content = (
+                                        <div className="p-1 max-w-xs">
+                                            <h4 className="font-bold mb-2 border-b pb-1 text-slate-800 dark:text-slate-200">
+                                                {totalLeaves} items in this area
+                                            </h4>
+                                            <ul className="list-none p-0 m-0 max-h-48 overflow-y-auto space-y-1 text-sm">
+                                                {leaves.map((leaf, index) => {
+                                                    const markerData = leaf.properties.markerData as MapMarker;
+                                                    return (
+                                                        <li key={index} className="p-1.5 rounded-md bg-slate-50 dark:bg-slate-700/50">
+                                                            {markerData.popupContent}
+                                                        </li>
+                                                    );
+                                                })}
+                                                {totalLeaves > leaves.length && (
+                                                    <li className="p-1.5 text-center text-xs text-slate-500">
+                                                        ...and {totalLeaves - leaves.length} more.
+                                                    </li>
+                                                )}
+                                            </ul>
+                                            <Button 
+                                                size="sm" 
+                                                variant="secondary" 
+                                                className="w-full mt-2"
+                                                onClick={() => {
+                                                    const expansionZoom = Math.min(
+                                                        supercluster.getClusterExpansionZoom(cluster.id as number),
+                                                        20
+                                                    );
+                                                    map.setView([latitude, longitude], expansionZoom, { animate: true });
+                                                    setClusterPopup(null);
+                                                }}
+                                            >
+                                                Zoom In
+                                            </Button>
+                                        </div>
+                                    );
+                                    setClusterPopup({ lat: latitude, lng: longitude, content });
+                                }}
                         />
                     );
                 }
@@ -147,6 +185,16 @@ const ClusterMapItems: React.FC<{ markers: MapMarker[] }> = ({ markers }) => {
                     </React.Fragment>
                 );
             })}
+             {clusterPopup && (
+                <Popup 
+                    position={[clusterPopup.lat, clusterPopup.lng]} 
+                    // FIX: Replaced invalid 'onClose' prop with 'eventHandlers' using the 'remove' event,
+                    // which is the correct API for handling popup close events in this react-leaflet version.
+                    eventHandlers={{ remove: () => setClusterPopup(null) }}
+                >
+                    {clusterPopup.content}
+                </Popup>
+            )}
         </>
     );
 };

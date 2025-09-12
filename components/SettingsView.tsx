@@ -8,6 +8,7 @@ import { Button } from './ui/Button';
 import { ToggleSwitch } from './ui/ToggleSwitch';
 import { Tag } from './ui/Tag';
 import { hasPermission } from '../services/auth';
+import { Avatar } from './ui/Avatar';
 
 interface SettingsViewProps {
   user: User;
@@ -15,21 +16,6 @@ interface SettingsViewProps {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
 }
-
-const Avatar: React.FC<{ name: string; className?: string }> = ({ name, className = '' }) => {
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
 
 const SettingsRow: React.FC<{
     icon: React.ReactNode;

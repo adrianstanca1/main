@@ -1,8 +1,10 @@
+
 import React from 'react';
 // FIX: Corrected import path to be relative.
 import { Todo, User, TodoStatus, Permission } from '../types';
 import { PriorityDisplay } from './ui/PriorityDisplay';
 import { hasPermission } from '../services/auth';
+import { Avatar } from './ui/Avatar';
 
 interface TaskCardProps {
     todo: Todo;
@@ -10,25 +12,6 @@ interface TaskCardProps {
     assignee?: User;
     user: User;
 }
-
-const Avatar: React.FC<{ name: string; imageUrl?: string; className?: string }> = ({ name, imageUrl, className = '' }) => {
-    if (imageUrl) {
-        return <img src={imageUrl} alt={name} title={name} className={`rounded-full object-cover ${className}`} />;
-    }
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div title={name} className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
-
 
 export const TaskCard: React.FC<TaskCardProps> = ({ todo, onClick, assignee, user }) => {
     const subtaskCount = todo.subTasks?.length || 0;

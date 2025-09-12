@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Todo, Project, Permission, TodoStatus, TodoPriority, SubTask, Comment } from '../types';
 import { api } from '../services/mockApi';
@@ -5,27 +6,13 @@ import { Card } from './ui/Card';
 import { hasPermission } from '../services/auth';
 import { PriorityDisplay } from './ui/PriorityDisplay';
 import { Button } from './ui/Button';
+import { Avatar } from './ui/Avatar';
 
 interface AllTasksViewProps {
   user: User;
   addToast: (message: string, type: 'success' | 'error') => void;
   isOnline: boolean;
 }
-
-const Avatar: React.FC<{ name: string; className?: string }> = ({ name, className = '' }) => {
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) {
-            return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        }
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div title={name} className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
 
 const TaskDetailModal: React.FC<{
     task: Todo;

@@ -1,27 +1,16 @@
+
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Conversation, ChatMessage } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { Avatar } from './ui/Avatar';
 
 interface ChatViewProps {
   user: User;
   addToast: (message: string, type: 'success' | 'error') => void;
   initialRecipient: User | null;
 }
-
-const Avatar: React.FC<{ name: string; className?: string }> = ({ name, className = '' }) => {
-    const getInitials = (name: string) => {
-        const parts = name.split(' ');
-        if (parts.length > 1) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-        return name.substring(0, 2).toUpperCase();
-    };
-    return (
-        <div className={`rounded-full bg-slate-700 flex items-center justify-center text-white font-bold flex-shrink-0 ${className}`}>
-            {getInitials(name)}
-        </div>
-    );
-};
 
 export const ChatView: React.FC<ChatViewProps> = ({ user, addToast, initialRecipient }) => {
     const [conversations, setConversations] = useState<Conversation[]>([]);

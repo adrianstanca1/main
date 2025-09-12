@@ -37,8 +37,8 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, view, activeView, setAct
         onClick={() => setActiveView(view)}
         className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 rounded-lg text-sm transition-colors ${
             activeView === view
-                ? 'bg-slate-800 text-white font-semibold shadow-inner'
-                : 'text-slate-200 hover:bg-slate-600/50'
+                ? 'bg-slate-900 text-white font-semibold shadow-inner'
+                : 'text-slate-200 hover:bg-slate-700/50'
         }`}
     >
         <div className="flex items-center gap-3">
@@ -82,9 +82,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, activeView, setActiveVie
     const navItems = navItemDefinitions.filter(item => item.permission);
 
     return (
-        <aside className="w-64 bg-slate-700 text-white p-4 flex flex-col flex-shrink-0 h-screen">
+        <aside className="w-64 bg-slate-800 text-white p-4 flex flex-col flex-shrink-0 h-screen">
             <div className="flex items-center gap-2 mb-8 px-2">
-                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="w-8 h-8 text-green-400">
+                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="w-9 h-9 text-green-500">
                     <path fill="currentColor" d="M12 2L2 22h20L12 2z"/>
                 </svg>
                 <h1 className="text-xl font-bold">AS Agents</h1>
@@ -99,7 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ user, activeView, setActiveVie
                     label="Settings" view="settings" activeView={activeView} setActiveView={setActiveView} />
                 <button
                     onClick={onLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-slate-200 hover:bg-slate-600/50 mt-2"
+                    className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm text-slate-200 hover:bg-slate-700/50 mt-2"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     <span>Logout</span>

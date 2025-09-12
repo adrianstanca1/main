@@ -2,7 +2,7 @@
 
 import React from 'react';
 // FIX: Corrected import path to be relative.
-import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus, UserStatus } from '../../types';
+import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus, UserStatus, Project } from '../../types';
 
 export const DocumentStatusBadge: React.FC<{ status: DocumentStatus }> = ({ status }) => {
     const statusMap = {
@@ -86,3 +86,12 @@ export const UserStatusBadge: React.FC<{ status: UserStatus }> = ({ status }) =>
     const { text, color, icon } = statusConfig[status] || statusConfig[UserStatus.OFF_SITE];
     return <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full ${color}`}>{icon} {text}</span>;
 }
+
+export const ProjectStatusBadge: React.FC<{ status: Project['status'] }> = ({ status }) => {
+    const statusStyles: Record<Project['status'], string> = {
+        'Active': 'bg-green-100 text-green-800',
+        'On Hold': 'bg-yellow-100 text-yellow-800',
+        'Completed': 'bg-slate-200 text-slate-800'
+    };
+    return <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${statusStyles[status]}`}>{status}</span>;
+};
