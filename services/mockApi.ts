@@ -4,7 +4,8 @@ import {
   User, Project, Todo, Document, SafetyIncident, Timesheet, Equipment,
   Company, CompanySettings, Permission, Role, Conversation, ChatMessage,
   Client, Invoice, Quote, ProjectTemplate, ResourceAssignment, AISearchResult, AuditLog,
-  FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus
+  FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus,
+  EquipmentStatus, ProjectAssignment
 } from '../types';
 import { db } from './mockData';
 import { hasPermission } from './auth';
@@ -27,10 +28,16 @@ export const api = {
 
   // Company
   getCompanies: (): Promise<Company[]> => simulateNetwork(db.companies),
-  getCompanySettings: (companyId: number): Promise<CompanySettings> => simulateNetwork(db.companySettings.find(cs => cs.companyId === companyId)!),
+  getCompanySettings: (companyId: number): Promise<CompanySettings> => {
+    const settings = db.companySettings.find(cs => cs.companyId === companyId);
+    if (!settings) throw new Error("Company settings not found");
+    const { companyId: _, ...companySettings } = settings;
+    return simulateNetwork(companySettings);
+  },
   updateCompanySettings: (companyId: number, settings: CompanySettings, actorId: number): Promise<CompanySettings> => {
     const index = db.companySettings.findIndex(cs => cs.companyId === companyId);
-    db.companySettings[index] = settings;
+    if (index === -1) throw new Error("Company settings not found");
+    db.companySettings[index] = { ...settings, companyId };
     return simulateNetwork(settings);
   },
 
@@ -127,21 +134,21 @@ export const api = {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].projectId = projectId;
-      db.equipment[index].status = 'In Use';
+      db.equipment[index].status = EquipmentStatus.IN_USE;
       return simulateNetwork(db.equipment[index]);
   },
   unassignEquipmentFromProject: (equipmentId: number, actorId: number): Promise<Equipment> => {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].projectId = null;
-      db.equipment[index].status = 'Available';
+      db.equipment[index].status = EquipmentStatus.AVAILABLE;
       return simulateNetwork(db.equipment[index]);
   },
   updateEquipmentStatus: (equipmentId: number, status: EquipmentStatus, actorId: number): Promise<Equipment> => {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].status = status;
-      if (status === 'Available') db.equipment[index].projectId = null;
+      if (status === EquipmentStatus.AVAILABLE) db.equipment[index].projectId = null;
       return simulateNetwork(db.equipment[index]);
   },
 
@@ -184,21 +191,32 @@ export const api = {
     const clientIds = db.clients.filter(c => c.companyId === companyId).map(c => c.id);
     return simulateNetwork(db.invoices.filter(i => clientIds.includes(i.clientId)));
   },
+  deleteInvoice: (invoiceId: number): Promise<void> => {
+    const index = db.invoices.findIndex(i => i.id === invoiceId);
+    if (index === -1) throw new Error("Invoice not found");
+    db.invoices.splice(index, 1);
+    return simulateNetwork(void 0);
+  },
   getQuotesByCompany: (companyId: number): Promise<Quote[]> => {
     const clientIds = db.clients.filter(c => c.companyId === companyId).map(c => c.id);
     return simulateNetwork(db.quotes.filter(q => clientIds.includes(q.clientId)));
   },
-  getFinancialKPIsForCompany: (companyId: number): Promise<FinancialKPIs> => simulateNetwork({ profitability: 12.5, projectMargin: 22.1, cashFlow: 125000, currency: 'GBP' }),
+  getFinancialKPIsForCompany: (companyId: number): Promise<FinancialKPIs> => simulateNetwork({ 
+    totalRevenue: 500000, 
+    totalProfit: 62500, 
+    totalCosts: 437500, 
+    projectsCount: 8 
+  }),
   getMonthlyFinancials: (companyId: number): Promise<MonthlyFinancials[]> => {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
       return simulateNetwork(months.map(m => ({ month: m, revenue: 100000 + Math.random() * 50000, costs: 80000 + Math.random() * 30000, profit: 20000 + Math.random() * 20000 })));
   },
   getCostBreakdown: (companyId: number): Promise<CostBreakdown[]> => simulateNetwork([
-      { category: 'Labor', amount: 150000 },
-      { category: 'Materials', amount: 250000 },
-      { category: 'Subcontractors', amount: 120000 },
-      { category: 'Equipment', amount: 80000 },
-      { category: 'Overhead', amount: 50000 },
+      { category: 'Labor', amount: 150000, percentage: 30 },
+      { category: 'Materials', amount: 250000, percentage: 50 },
+      { category: 'Subcontractors', amount: 120000, percentage: 24 },
+      { category: 'Equipment', amount: 80000, percentage: 16 },
+      { category: 'Overhead', amount: 50000, percentage: 10 },
   ]),
 
   // Templates

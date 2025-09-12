@@ -18,7 +18,7 @@ const highlightText = (text: string, highlight: string): React.ReactNode => {
     if (!highlight.trim() || !text) {
         return text;
     }
-    const regex = new RegExp(`(${highlight.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
+    const regex = new RegExp(`(${highlight.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
     return (
         <span>

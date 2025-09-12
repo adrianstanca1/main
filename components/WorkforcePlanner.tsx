@@ -108,7 +108,7 @@ export const WorkforcePlanner: React.FC<WorkforcePlannerProps> = ({ user, addToa
             companyId: user.companyId,
             projectId,
             resourceId: userId,
-            resourceType: 'user' as 'user',
+            resourceType: 'user' as const,
             startDate: date,
             endDate: new Date(new Date(date).setDate(date.getDate() + 4)), // Assign for 5 days
         };

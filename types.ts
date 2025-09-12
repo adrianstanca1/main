@@ -346,6 +346,26 @@ export interface SystemHealth { status: 'OK' | 'DEGRADED' | 'DOWN'; message: str
 export interface UsageMetric { name: string; value: number; unit: string; }
 export interface PlatformSettings { maintenanceMode: boolean; }
 
+export interface FinancialKPIs {
+  totalRevenue: number;
+  totalProfit: number;
+  totalCosts: number;
+  projectsCount: number;
+}
+
+export interface MonthlyFinancials {
+  month: string;
+  revenue: number;
+  costs: number;
+  profit: number;
+}
+
+export interface CostBreakdown {
+  category: string;
+  amount: number;
+  percentage: number;
+}
+
 
 export enum Permission {
     VIEW_DASHBOARD = 'VIEW_DASHBOARD',
