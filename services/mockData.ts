@@ -5,7 +5,8 @@ import {
   Company, CompanySettings, Role, TodoStatus, TodoPriority, DocumentStatus,
   DocumentCategory, IncidentSeverity, IncidentStatus, TimesheetStatus, EquipmentStatus,
   UserStatus, ProjectAssignment, ResourceAssignment, Conversation, ChatMessage,
-  Client, Invoice, InvoiceStatus, Quote, QuoteStatus, ProjectTemplate, AuditLog
+  Client, Invoice, InvoiceStatus, Quote, QuoteStatus, ProjectTemplate, AuditLog,
+  Comment
 } from '../types';
 
 let users: User[] = [
@@ -33,7 +34,7 @@ let projects: Project[] = [
 
 let todos: Todo[] = [
   { id: 1001, text: 'Finalize structural steel drawings', projectId: 100, assigneeId: 11, creatorId: 10, status: TodoStatus.IN_PROGRESS, priority: TodoPriority.HIGH, dueDate: new Date('2024-08-15') },
-  { id: 1002, text: 'Install HVAC system on floors 1-5', projectId: 100, assigneeId: 12, creatorId: 11, status: TodoStatus.TODO, priority: TodoPriority.HIGH, dueDate: new Date('2024-09-01'), subTasks: [{id: 1, text: "Floor 1", isCompleted: true}, {id: 2, text: "Floor 2", isCompleted: false}] },
+  { id: 1002, text: 'Install HVAC system on floors 1-5', projectId: 100, assigneeId: 12, creatorId: 11, status: TodoStatus.TODO, priority: TodoPriority.HIGH, dueDate: new Date('2024-09-01'), subTasks: [{id: 1, text: "Floor 1", isCompleted: true}, {id: 2, text: "Floor 2", isCompleted: false}], comments: [{ id: 1, text: "We need to coordinate with the electricians before starting floor 3.", authorId: 11, timestamp: new Date(Date.now() - 86400000) }] },
   { id: 1003, text: 'Lay foundations for Plot 12', projectId: 101, assigneeId: 13, creatorId: 12, status: TodoStatus.TODO, priority: TodoPriority.MEDIUM, dueDate: new Date() },
   { id: 1004, text: 'Source and order bespoke windows', projectId: 100, assigneeId: 11, creatorId: 10, status: TodoStatus.DONE, priority: TodoPriority.LOW, dueDate: new Date('2024-06-01') },
 ];
@@ -53,7 +54,8 @@ let timesheets: Timesheet[] = [
 ];
 
 let safetyIncidents: SafetyIncident[] = [
-    { id: 1, description: 'Minor slip near scaffolding, no injury.', projectId: 100, reporterId: 12, timestamp: new Date(), severity: IncidentSeverity.LOW, status: IncidentStatus.RESOLVED }
+    { id: 1, description: 'Minor slip near scaffolding, no injury.', projectId: 100, reporterId: 12, timestamp: new Date(), severity: IncidentSeverity.LOW, status: IncidentStatus.RESOLVED },
+    { id: 2, description: 'Incorrect PPE worn by subcontractor.', projectId: 101, reporterId: 11, timestamp: new Date(Date.now() - 86400000 * 5), severity: IncidentSeverity.MEDIUM, status: IncidentStatus.UNDER_REVIEW }
 ];
 
 let equipment: Equipment[] = [
@@ -63,7 +65,7 @@ let equipment: Equipment[] = [
     { id: 4, companyId: 1, name: 'Scaffolding Set A', type: 'Support', status: EquipmentStatus.MAINTENANCE, projectId: null },
 ];
 
-let companySettings: { companyId: number }[] & CompanySettings[] = [
+const companySettings: CompanySettings[] = [
     { companyId: 1, theme: 'light', notificationPreferences: { projectUpdates: true, timeReminders: true, photoRequirements: false }, locationPreferences: { backgroundTracking: false, gpsAccuracy: 'standard' } },
     { companyId: 2, theme: 'dark', notificationPreferences: { projectUpdates: true, timeReminders: false, photoRequirements: true }, locationPreferences: { backgroundTracking: true, gpsAccuracy: 'high' } }
 ];

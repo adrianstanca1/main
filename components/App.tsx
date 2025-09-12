@@ -78,7 +78,6 @@ const App: React.FC = () => {
             const fetchPendingCount = async () => {
                 try {
                     let timesheets: Timesheet[];
-                    // FIX: Changed string literal 'Company Admin' to use the Role enum for type safety.
                     if (user.role === Role.ADMIN) {
                         timesheets = await api.getTimesheetsByCompany(user.companyId!, user.id);
                     } else { // PM

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 // FIX: Corrected import paths to be relative.
-import { User, Role, Permission, Project, Timesheet, AuditLog, TimesheetStatus } from '../types';
+import { User, Role, Permission, Project, Timesheet, AuditLog, TimesheetStatus, ProjectAssignment, Todo, TodoStatus, UserStatus } from '../types';
 import { api } from '../services/mockApi';
 import { hasPermission } from '../services/auth';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { UserStatusBadge, TimesheetStatusBadge } from './ui/StatusBadge';
 import { Tag } from './ui/Tag';
+import { MapView, MapMarker } from './MapView';
 
 interface TeamViewProps {
   user: User;
@@ -157,10 +158,14 @@ const UserProfileModal: React.FC<{
 
 export const TeamView: React.FC<TeamViewProps> = ({ user, addToast, onStartChat }) => {
     const [team, setTeam] = useState<User[]>([]);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [assignments, setAssignments] = useState<ProjectAssignment[]>([]);
+    const [todos, setTodos] = useState<Todo[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [isMapVisible, setIsMapVisible] = useState(false);
 
     const canManageTeam = hasPermission(user, Permission.MANAGE_TEAM);
 
@@ -168,8 +173,19 @@ export const TeamView: React.FC<TeamViewProps> = ({ user, addToast, onStartChat 
         setLoading(true);
         try {
             if (!user.companyId) return;
-            const users = await api.getUsersByCompany(user.companyId);
+            const [users, projectsData, assignmentsData] = await Promise.all([
+                api.getUsersByCompany(user.companyId),
+                api.getProjectsByCompany(user.companyId),
+                api.getProjectAssignmentsByCompany(user.companyId)
+            ]);
+            
+            const projectIds = projectsData.map(p => p.id);
+            const todosData = projectIds.length > 0 ? await api.getTodosByProjectIds(projectIds) : [];
+            
             setTeam(users);
+            setProjects(projectsData);
+            setAssignments(assignmentsData);
+            setTodos(todosData);
         } catch (error) {
             addToast("Failed to load team data.", "error");
         } finally {
@@ -181,6 +197,61 @@ export const TeamView: React.FC<TeamViewProps> = ({ user, addToast, onStartChat 
         fetchData();
     }, [fetchData]);
 
+    const userProjectsMap = useMemo(() => {
+        const map = new Map<number, Project[]>();
+        const projectMap = new Map(projects.map(p => [p.id, p]));
+
+        team.forEach(member => {
+            const memberAssignments = assignments
+                .filter(a => a.userId === member.id)
+                .map(a => projectMap.get(a.projectId))
+                .filter((p): p is Project => p !== undefined);
+            map.set(member.id, memberAssignments);
+        });
+        return map;
+    }, [team, projects, assignments]);
+
+    const userTaskCountMap = useMemo(() => {
+        const map = new Map<number, number>();
+        team.forEach(member => {
+            const count = todos.filter(
+                todo => todo.assigneeId === member.id && todo.status !== TodoStatus.DONE
+            ).length;
+            map.set(member.id, count);
+        });
+        return map;
+    }, [team, todos]);
+
+    const mapMarkers = useMemo<MapMarker[]>(() => {
+        if (!isMapVisible) return [];
+
+        const projectMap = new Map(projects.map(p => [p.id, p]));
+
+        return team
+            .filter(member => member.status === UserStatus.ON_SITE)
+            .map((member): MapMarker | null => {
+                const assignment = assignments.find(a => a.userId === member.id);
+                if (!assignment) return null;
+                
+                const project = projectMap.get(assignment.projectId);
+                if (!project || !project.location) return null;
+
+                return {
+                    lat: project.location.lat,
+                    lng: project.location.lng,
+                    popupContent: (
+                        <div>
+                            <h4 className="font-bold">{member.name}</h4>
+                            <p>{member.role}</p>
+                        </div>
+                    ),
+                    status: project.status,
+                };
+            })
+            .filter((marker): marker is MapMarker => marker !== null);
+    }, [isMapVisible, team, projects, assignments]);
+
+
     const filteredTeam = useMemo(() => {
         return team.filter(member => {
             const matchesSearch = member.name.toLowerCase().includes(searchTerm.toLowerCase()) || member.email.toLowerCase().includes(searchTerm.toLowerCase());
@@ -188,6 +259,15 @@ export const TeamView: React.FC<TeamViewProps> = ({ user, addToast, onStartChat 
             return matchesSearch && matchesRole;
         });
     }, [team, searchTerm, roleFilter]);
+
+    const getProjectStatusColor = (status: Project['status']): 'green' | 'yellow' | 'gray' => {
+        switch (status) {
+            case 'Active': return 'green';
+            case 'On Hold': return 'yellow';
+            case 'Completed': return 'gray';
+            default: return 'gray';
+        }
+    };
 
     if (loading) {
         return <Card><p>Loading team members...</p></Card>;
@@ -198,10 +278,19 @@ export const TeamView: React.FC<TeamViewProps> = ({ user, addToast, onStartChat 
             {selectedUser && <UserProfileModal selectedUser={selectedUser} currentUser={user} onClose={() => setSelectedUser(null)} addToast={addToast} onStartChat={onStartChat} />}
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <h2 className="text-3xl font-bold text-slate-800">Team Management</h2>
-                {canManageTeam && <Button>Add Team Member</Button>}
+                 <div className="flex items-center gap-2">
+                    <Button variant="secondary" onClick={() => setIsMapVisible(prev => !prev)}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {isMapVisible ? 'Hide Map' : 'Show on Map'}
+                    </Button>
+                    {canManageTeam && <Button>Add Member</Button>}
+                </div>
             </div>
+
             <Card>
-                <div className="flex flex-col md:flex-row gap-4 mb-4 pb-4 border-b">
+                 <div className="flex flex-col md:flex-row gap-4 mb-4 pb-4 border-b">
                     <input
                         type="text"
                         placeholder="Search by name or email..."
@@ -215,25 +304,59 @@ export const TeamView: React.FC<TeamViewProps> = ({ user, addToast, onStartChat 
                         className="w-full md:w-auto p-2 border bg-white rounded-md"
                     >
                         <option value="all">All Roles</option>
-                        {/* FIX: Correctly map over string enum values for keys. */}
-                        {Object.values(Role).map(role => (
-                           role !== Role.PRINCIPAL_ADMIN && <option key={role} value={role}>{role}</option>
-                        ))}
+                        {Object.values(Role).filter(r => r !== Role.PRINCIPAL_ADMIN).map(role => <option key={role} value={role}>{role}</option>)}
                     </select>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredTeam.map(member => (
-                        <Card key={member.id} className="animate-card-enter cursor-pointer hover:shadow-lg hover:border-sky-500/50" onClick={() => setSelectedUser(member)}>
-                            <div className="flex flex-col items-center text-center">
-                                <Avatar name={member.name} className="w-20 h-20 text-3xl mb-4" />
-                                <h3 className="font-bold text-lg text-slate-800">{member.name}</h3>
-                                <p className="text-sm text-slate-500 mb-2">{member.email}</p>
-                                <Tag label={member.role} color="blue" />
-                                {member.status && <div className="mt-4"><UserStatusBadge status={member.status} /></div>}
-                            </div>
-                        </Card>
-                    ))}
+                {isMapVisible && <MapView markers={mapMarkers} height="h-96" />}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mt-4">
+                    {filteredTeam.map(member => {
+                        const memberProjects = userProjectsMap.get(member.id) || [];
+                        const taskCount = userTaskCountMap.get(member.id) || 0;
+                        return (
+                             <Card key={member.id} onClick={() => setSelectedUser(member)} className="cursor-pointer hover:shadow-lg hover:border-sky-500/50 transition-all flex flex-col p-4 animate-card-enter">
+                                <div className="flex items-start gap-4">
+                                    <Avatar name={member.name} className="w-12 h-12 text-lg flex-shrink-0" />
+                                    <div className="flex-grow">
+                                        <p className="font-bold text-slate-800">{member.name}</p>
+                                        <p className="text-sm text-slate-500">{member.role}</p>
+                                    </div>
+                                    {member.status && <UserStatusBadge status={member.status} />}
+                                </div>
+                                
+                                <div className="mt-4 pt-4 border-t border-slate-200/80 space-y-3 text-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-slate-500 font-medium">Open Tasks</span>
+                                        <Tag label={String(taskCount)} color="gray" />
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500 font-medium mb-2 block">Projects</span>
+                                        <div className="flex flex-wrap gap-1">
+                                             {memberProjects.length > 0 ? (
+                                                <>
+                                                    {memberProjects.slice(0, 2).map(p => {
+                                                        const statusColor = getProjectStatusColor(p.status);
+                                                        return <Tag 
+                                                            key={p.id} 
+                                                            label={p.name} 
+                                                            color="blue" 
+                                                            className="text-xs" 
+                                                            title={`${p.name} (${p.status})`} 
+                                                            statusIndicator={statusColor}
+                                                        />
+                                                    })}
+                                                    {memberProjects.length > 2 && <Tag label={`+${memberProjects.length - 2} more`} color="gray" className="text-xs"/>}
+                                                </>
+                                            ) : (
+                                                <p className="text-slate-400 text-xs italic">No projects assigned</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </Card>
+                        );
+                    })}
                 </div>
             </Card>
         </div>

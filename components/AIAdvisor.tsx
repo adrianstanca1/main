@@ -1,5 +1,3 @@
-
-
 import React, { useState, useRef, useEffect } from 'react';
 // FIX: Corrected import path to be relative.
 import { User } from '../types';
@@ -26,8 +24,11 @@ export const AIAdvisor: React.FC<AIAdvisorProps> = ({ user, addToast }) => {
 
     useEffect(() => {
         try {
-            // FIX: Corrected GoogleGenAI initialization
-            aiRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+            if (!process.env.API_KEY) {
+                addToast("AI Advisor API key not configured.", "error");
+                return;
+            }
+            aiRef.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
             chatRef.current = aiRef.current.chats.create({
                 model: 'gemini-2.5-flash',
                 config: {
@@ -56,7 +57,6 @@ export const AIAdvisor: React.FC<AIAdvisorProps> = ({ user, addToast }) => {
             setHistory(prev => [...prev, { role: 'model', text: '' }]);
 
             for await (const chunk of responseStream) {
-                // FIX: Correctly access the text from the streaming response.
                 modelResponse += chunk.text;
                 setHistory(prev => {
                     const newHistory = [...prev];
@@ -67,7 +67,7 @@ export const AIAdvisor: React.FC<AIAdvisorProps> = ({ user, addToast }) => {
         } catch (error) {
             console.error(error);
             addToast("The AI failed to respond. Please try again.", "error");
-            setHistory(prev => prev.slice(0, -1)); // Remove empty model response on error
+            setHistory(prev => prev.filter(msg => msg.text !== '')); // Remove empty model response on error
         } finally {
             setIsLoading(false);
         }
@@ -96,7 +96,9 @@ export const AIAdvisor: React.FC<AIAdvisorProps> = ({ user, addToast }) => {
                     placeholder="Ask a question..."
                     disabled={isLoading}
                 />
-                <Button type="submit" isLoading={isLoading} disabled={!query.trim()}>Ask AI</Button>
+                <Button type="submit" isLoading={isLoading} disabled={isLoading || !query.trim()}>
+                    Ask
+                </Button>
             </form>
         </Card>
     );

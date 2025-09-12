@@ -1,7 +1,6 @@
 
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-// FIX: Corrected import paths to be relative.
 import { Login } from './components/Login';
 import { User, View, Project, Timesheet, TimesheetStatus, Permission, SafetyIncident, IncidentStatus, Role } from './types';
 import { Sidebar } from './components/layout/Sidebar';
@@ -59,10 +58,6 @@ const App: React.FC = () => {
         document.documentElement.classList.toggle('dark', theme === 'dark');
     }, [theme]);
 
-    const addToastCallback = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-        addToast(message, type);
-    }, []);
-
     useEffect(() => {
         if (user?.companyId) {
             api.getCompanySettings(user.companyId)
@@ -71,14 +66,14 @@ const App: React.FC = () => {
                 })
                 .catch(err => {
                     console.error("Failed to load user theme setting.", err);
-                    addToastCallback("Could not load theme settings.", "error");
+                    addToast("Could not load theme settings.", "error");
                 });
         }
-    }, [user, addToastCallback]);
+    }, [user]);
 
     useEffect(() => {
         if (!user) return;
-        const intervals: NodeJS.Timeout[] = [];
+        const intervals: number[] = [];
 
         // Fetch pending timesheets for managers/admins
         if (hasPermission(user, Permission.MANAGE_TIMESHEETS)) {
@@ -97,7 +92,7 @@ const App: React.FC = () => {
                 }
             };
             fetchPendingCount();
-            intervals.push(setInterval(fetchPendingCount, 60000));
+            intervals.push(window.setInterval(fetchPendingCount, 60000));
         } else {
             setPendingTimesheetCount(0);
         }
@@ -114,7 +109,7 @@ const App: React.FC = () => {
                 }
            }
            fetchOpenIncidents();
-           intervals.push(setInterval(fetchOpenIncidents, 60000));
+           intervals.push(window.setInterval(fetchOpenIncidents, 60000));
         } else {
             setOpenIncidentCount(0);
         }
@@ -136,7 +131,7 @@ const App: React.FC = () => {
                 }
             };
             fetchUnreadCount();
-            intervals.push(setInterval(fetchUnreadCount, 15000)); // Check for new messages more frequently
+            intervals.push(window.setInterval(fetchUnreadCount, 15000)); // Check for new messages more frequently
         } else {
             setUnreadMessageCount(0);
         }

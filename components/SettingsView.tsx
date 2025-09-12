@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 // FIX: Corrected import paths to be relative.
 import { User, Role, Company, CompanySettings, LocationPreferences, NotificationPreferences, Permission } from '../types';
@@ -153,12 +152,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, addToast, them
                             label="Dark Mode"
                             action={<ToggleSwitch checked={theme === 'dark'} onChange={(checked) => handleThemeChange(checked ? 'dark' : 'light')} />}
                         />
-                        <SettingsRow
-                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>}
-                            label="Notification Preferences"
-                            action="arrow"
-                            onClick={() => {}}
-                        />
                          <SettingsRow
                             icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>}
                             label="Security"
@@ -168,8 +161,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, addToast, them
                     </div>
                 </Card>
 
+                {/* Notification Settings */}
+                {settings && notifPrefs && (
+                    <Card>
+                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Notification Settings</h3>
+                         <div className="divide-y divide-slate-200">
+                            <SettingsRow
+                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>}
+                                label="Project Updates"
+                                description="Get notified about major project changes."
+                                action={<ToggleSwitch checked={notifPrefs.projectUpdates} onChange={v => handleNotificationChange('projectUpdates', v)} />}
+                            />
+                             <SettingsRow
+                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                                label="Time Clock Reminders"
+                                description="Reminders to clock out if still active after 10 hours."
+                                action={<ToggleSwitch checked={notifPrefs.timeReminders} onChange={v => handleNotificationChange('timeReminders', v)} />}
+                            />
+                             <SettingsRow
+                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+                                label="Photo Requirements"
+                                description="Get reminders if photos are required for clock-in/out."
+                                action={<ToggleSwitch checked={notifPrefs.photoRequirements} onChange={v => handleNotificationChange('photoRequirements', v)} />}
+                            />
+                        </div>
+                    </Card>
+                )}
+
                 {/* Company Settings */}
-                {canManageCompanySettings && settings && notifPrefs && locPrefs && (
+                {canManageCompanySettings && settings && locPrefs && (
                     <Card>
                         <h3 className="text-lg font-semibold text-slate-800 mb-2">Company Settings</h3>
                         <div className="divide-y divide-slate-200">
@@ -192,26 +212,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ user, addToast, them
                                     <option value="high">High</option>
                                 </select>
                             </div>
-
-                             <h4 className="font-semibold text-slate-600 text-sm pt-4 pb-2">Notifications</h4>
-                            <SettingsRow
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>}
-                                label="Project Updates"
-                                description="Send automated emails for major project changes."
-                                action={<ToggleSwitch checked={notifPrefs.projectUpdates} onChange={v => handleNotificationChange('projectUpdates', v)} />}
-                            />
-                             <SettingsRow
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
-                                label="Time Clock Reminders"
-                                description="Remind operatives to clock out if still active after 10 hours."
-                                action={<ToggleSwitch checked={notifPrefs.timeReminders} onChange={v => handleNotificationChange('timeReminders', v)} />}
-                            />
-                             <SettingsRow
-                                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-                                label="Photo Requirements"
-                                description="Require operatives to take photos on clock-in and clock-out."
-                                action={<ToggleSwitch checked={notifPrefs.photoRequirements} onChange={v => handleNotificationChange('photoRequirements', v)} />}
-                            />
                         </div>
                     </Card>
                 )}

@@ -1,18 +1,15 @@
-  // Financials
-  deleteInvoice: (invoiceId: number): Promise<{ success: true }> => {
-    db.invoices = db.invoices.filter(i => i.id !== invoiceId);
-    return simulateNetwork({ success: true });
-  },
 // full contents of services/mockApi.ts
 
 import {
   User, Project, Todo, Document, SafetyIncident, Timesheet, Equipment,
   Company, CompanySettings, Permission, Role, Conversation, ChatMessage,
   Client, Invoice, Quote, ProjectTemplate, ResourceAssignment, AISearchResult, AuditLog,
-  FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus
+  FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus,
+  EquipmentStatus, ProjectAssignment, TodoPriority, TodoStatus
 } from '../types';
 import { db } from './mockData';
 import { hasPermission } from './auth';
+import { GoogleGenAI, Type, GenerateContentResponse } from '@google/genai';
 
 const LATENCY = 300; // ms
 
@@ -74,7 +71,7 @@ export const api = {
                     id: `${newProject.id}-${Date.now()}-${Math.random()}`,
                     projectId: newProject.id,
                     creatorId: actorId,
-                    status: TimesheetStatus.PENDING as any, //TODO: fix type
+                    status: TodoStatus.TODO,
                 } as Todo;
                 db.todos.push(newTodo);
             });
@@ -89,9 +86,89 @@ export const api = {
   updateTodo: (todoId: number | string, updates: Partial<Todo>, actorId: number): Promise<Todo> => {
     const index = db.todos.findIndex(t => t.id === todoId);
     if (index === -1) throw new Error("Todo not found");
-    const updatedTodo = { ...db.todos[index], ...updates };
+
+    const finalUpdates = { ...updates };
+    // If status is being changed to 'Done', record who did it and when
+    if (updates.status === TodoStatus.DONE && db.todos[index].status !== TodoStatus.DONE) {
+        finalUpdates.completedBy = actorId;
+        finalUpdates.completedAt = new Date();
+    }
+    
+    const updatedTodo = { ...db.todos[index], ...finalUpdates };
     db.todos[index] = updatedTodo;
     return simulateNetwork(updatedTodo);
+  },
+  prioritizeTasks: async (tasks: Todo[], projects: Project[], userId: number): Promise<{ prioritizedTaskIds: (number | string)[] }> => {
+    if (!process.env.API_KEY) {
+        console.warn("API_KEY not found. Returning simple sorted tasks.");
+        const sortedTasks = [...tasks].sort((a, b) => {
+            const dueDateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+            const dueDateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+            if (dueDateA !== dueDateB) return dueDateA - dueDateB;
+            const priorityOrder = { [TodoPriority.HIGH]: 1, [TodoPriority.MEDIUM]: 2, [TodoPriority.LOW]: 3 };
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+        });
+        return simulateNetwork({ prioritizedTaskIds: sortedTasks.map(t => t.id) });
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const prompt = `
+        Given the following JSON data for projects and tasks assigned to a user, please act as an expert construction project manager. Analyze the tasks and return a JSON object with a single key "prioritizedTaskIds", which is an array of task IDs sorted in the order the user should complete them today.
+
+        Consider the following factors for prioritization:
+        1. Task Due Dates: Tasks with earlier due dates are more urgent. Today's date is ${new Date().toISOString()}.
+        2. Task Priority: 'High' priority tasks should be done before 'Medium' and 'Low' priority ones.
+        3. Project Status: Tasks in 'Active' projects are the main focus. Tasks in 'On Hold' projects are lowest priority.
+        4. Implied Dependencies: Analyze the task descriptions. For example, a task like "Install windows on 2nd floor" should come after "Frame window openings on 2nd floor". Prioritize foundational tasks first.
+
+        Here is the data:
+        Projects: ${JSON.stringify(projects.map(({ id, name, status, startDate }) => ({ id, name, status, startDate })))}
+        Tasks: ${JSON.stringify(tasks.map(({ id, text, projectId, priority, dueDate }) => ({ id: String(id), text, projectId, priority, dueDate })))}
+
+        Return only the JSON object containing the sorted task IDs. Do not include any other text or explanation.
+    `;
+
+    try {
+        const response: GenerateContentResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        prioritizedTaskIds: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.STRING,
+                            }
+                        }
+                    },
+                    required: ['prioritizedTaskIds']
+                }
+            }
+        });
+
+        const jsonStr = response.text;
+        const result = JSON.parse(jsonStr);
+        
+        const originalIdTypes = new Map(tasks.map(t => [String(t.id), t.id]));
+        const typedIds = result.prioritizedTaskIds.map((id: string) => originalIdTypes.get(id) || id);
+
+        return { prioritizedTaskIds: typedIds };
+
+    } catch (error) {
+        console.error("AI prioritization API call failed:", error);
+        const sortedTasks = [...tasks].sort((a, b) => {
+            const dueDateA = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+            const dueDateB = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+            if (dueDateA !== dueDateB) return dueDateA - dueDateB;
+            const priorityOrder = { [TodoPriority.HIGH]: 1, [TodoPriority.MEDIUM]: 2, [TodoPriority.LOW]: 3 };
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+        });
+        return { prioritizedTaskIds: sortedTasks.map(t => t.id) };
+    }
   },
 
   // Documents
@@ -132,21 +209,21 @@ export const api = {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].projectId = projectId;
-      db.equipment[index].status = 'In Use';
+      db.equipment[index].status = EquipmentStatus.IN_USE;
       return simulateNetwork(db.equipment[index]);
   },
   unassignEquipmentFromProject: (equipmentId: number, actorId: number): Promise<Equipment> => {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].projectId = null;
-      db.equipment[index].status = 'Available';
+      db.equipment[index].status = EquipmentStatus.AVAILABLE;
       return simulateNetwork(db.equipment[index]);
   },
   updateEquipmentStatus: (equipmentId: number, status: EquipmentStatus, actorId: number): Promise<Equipment> => {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].status = status;
-      if (status === 'Available') db.equipment[index].projectId = null;
+      if (status === EquipmentStatus.AVAILABLE) db.equipment[index].projectId = null;
       return simulateNetwork(db.equipment[index]);
   },
 
@@ -205,10 +282,6 @@ export const api = {
       { category: 'Equipment', amount: 80000 },
       { category: 'Overhead', amount: 50000 },
   ]),
-  deleteInvoice: (invoiceId: number): Promise<{ success: true }> => {
-    db.invoices = db.invoices.filter(i => i.id !== invoiceId);
-    return simulateNetwork({ success: true });
-  },
 
   // Templates
   getProjectTemplates: (companyId: number): Promise<ProjectTemplate[]> => simulateNetwork(db.projectTemplates.filter(t => t.companyId === companyId)),

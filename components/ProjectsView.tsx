@@ -1,3 +1,5 @@
+// full contents of components/ProjectsView.tsx
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Project, Todo, ProjectAssignment, Permission, TodoStatus } from '../types';
 import { api } from '../services/mockApi';
@@ -35,42 +37,49 @@ const ProjectSummaryCard: React.FC<{
                     <h3 className="font-bold text-lg text-slate-800 flex-grow pr-2">{project.name}</h3>
                     <span className={`px-2 py-0.5 text-xs font-semibold rounded-full flex-shrink-0 ${statusStyles[project.status]}`}>{project.status}</span>
                 </div>
-                <p className="text-sm text-slate-500 mb-4 flex-grow">{project.location.address}</p>
-                
-                <div className="space-y-3 text-sm text-slate-600 border-t pt-4 mt-auto">
-                    <div className="flex justify-between items-center">
-                        <span>Team</span>
-                        <span className="font-semibold">{memberCount} Members</span>
-                    </div>
-                     <div className="flex justify-between items-center">
-                        <span>Open Tasks</span>
-                        <span className="font-semibold">{taskCount}</span>
-                    </div>
-                     {overdueTaskCount > 0 && (
-                        <div className="flex justify-between items-center text-red-600">
-                            <span>Overdue Tasks</span>
-                            <span className="font-bold flex items-center gap-1">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                {overdueTaskCount}
-                            </span>
-                        </div>
-                    )}
-                    {upcomingMilestone && (
-                         <div className="flex justify-between items-center">
-                            <span>Next Milestone</span>
-                            <span className="font-semibold">{new Date(upcomingMilestone.date).toLocaleDateString()}</span>
-                        </div>
-                    )}
+                <p className="text-sm text-slate-500 mb-4">{project.location.address}</p>
+
+                {/* Key Metrics Grid */}
+                <div className="grid grid-cols-3 gap-2 text-center my-2">
                     <div>
-                        <div className="flex justify-between mb-1 text-xs">
-                            <span>Budget</span>
-                            <span>{progress.toFixed(0)}%</span>
+                        <p className="font-bold text-2xl text-slate-800">{memberCount}</p>
+                        <p className="text-xs text-slate-500">Team</p>
+                    </div>
+                    <div>
+                        <p className="font-bold text-2xl text-slate-800">{taskCount}</p>
+                        <p className="text-xs text-slate-500">Open Tasks</p>
+                    </div>
+                    <div className={overdueTaskCount > 0 ? 'text-red-600' : 'text-slate-800'}>
+                        <p className="font-bold text-2xl">{overdueTaskCount}</p>
+                        <p className="text-xs text-slate-500">Overdue</p>
+                    </div>
+                </div>
+
+                {/* Upcoming Milestone */}
+                <div className="mt-4 flex-grow">
+                    {upcomingMilestone ? (
+                        <div className="text-sm bg-slate-50 p-3 rounded-md border">
+                            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Next Milestone</p>
+                            <div className="flex justify-between items-center mt-1">
+                                <p className="font-semibold text-slate-700 truncate pr-2">{upcomingMilestone.name}</p>
+                                <p className="text-xs text-slate-600 font-medium flex-shrink-0">{new Date(upcomingMilestone.date).toLocaleDateString()}</p>
+                            </div>
                         </div>
-                        <div className="w-full bg-slate-200 rounded-full h-2">
-                            <div className={`h-2 rounded-full ${progress > 100 ? 'bg-red-500' : 'bg-sky-500'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
+                    ) : (
+                        <div className="text-sm bg-slate-50 p-3 rounded-md border text-center text-slate-500">
+                            <p>No upcoming tasks with due dates.</p>
                         </div>
+                    )}
+                </div>
+
+                {/* Budget */}
+                <div className="mt-4 pt-4 border-t">
+                    <div className="flex justify-between mb-1 text-xs font-medium text-slate-600">
+                        <span>Budget Used</span>
+                        <span>{progress.toFixed(0)}%</span>
+                    </div>
+                    <div className="w-full bg-slate-200 rounded-full h-2">
+                        <div className={`h-2 rounded-full ${progress > 100 ? 'bg-red-500' : 'bg-sky-500'}`} style={{ width: `${Math.min(progress, 100)}%` }}></div>
                     </div>
                 </div>
             </div>
