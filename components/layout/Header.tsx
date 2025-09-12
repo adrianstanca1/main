@@ -1,5 +1,7 @@
+
+
 import React, { useState, useRef, useEffect } from 'react';
-// FIX: Corrected import path
+// FIX: Corrected import path to be relative.
 import { User } from '../../types';
 
 interface HeaderProps {

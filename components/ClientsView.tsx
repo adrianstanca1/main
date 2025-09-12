@@ -1,4 +1,7 @@
+
+
 import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Corrected import paths to be relative.
 import { User, Client } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
@@ -16,6 +19,7 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ user, addToast }) => {
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
+            if (!user.companyId) return;
             const data = await api.getClientsByCompany(user.companyId);
             setClients(data);
         } catch (error) {

@@ -1,147 +1,64 @@
-import React, { useState } from 'react';
-// FIX: Corrected import path
-import { Todo, TodoStatus, SubTask, User, TodoPriority } from '../types';
+import React from 'react';
+// FIX: Corrected import path to be relative.
+import { Todo, TodoStatus, User } from '../types';
 import { TaskCard } from './TaskCard';
-import { Button } from './ui/Button';
 
 interface KanbanBoardProps {
     todos: Todo[];
-    allTodos: Todo[];
-    onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
-    onSelectTask: (task: Todo) => void;
-    onAddTask: (taskData: { text: string; priority: TodoPriority; status: TodoStatus }) => Promise<void>;
-    canManageTasks: boolean;
-    user: User;
-    addToast: (message: string, type: 'success' | 'error') => void;
-    onReminderUpdate: () => void;
+    onUpdateTodo: (taskId: number | string, updates: Partial<Todo>) => void;
     personnel: User[];
+    user: User;
 }
 
-interface KanbanColumnProps {
+const KanbanColumn: React.FC<{
     title: string;
-    status: TodoStatus;
     todos: Todo[];
-    allTodos: Todo[]; // For context
-    onUpdateTaskStatus: (todoId: number | string, newStatus: TodoStatus) => void;
-    onSelectTask: (task: Todo) => void;
-    onAddTask: (taskData: { text: string; priority: TodoPriority; status: TodoStatus }) => Promise<void>;
-    canManageTasks: boolean;
-    user: User;
-    addToast: (message: string, type: 'success' | 'error') => void;
-    onReminderUpdate: () => void;
+    onUpdateTodo: (taskId: number | string, updates: Partial<Todo>) => void;
     personnel: User[];
-}
-
-const KanbanColumn: React.FC<KanbanColumnProps> = ({ title, status, todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate, personnel }) => {
-    const [isOver, setIsOver] = useState(false);
-    
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault(); // Allow drop
-        if (canManageTasks) {
-            setIsOver(true);
-        }
-    };
-
-    const handleDragLeave = () => {
-        setIsOver(false);
-    }
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        if (!canManageTasks) return;
-        setIsOver(false);
-        const todoIdStr = e.dataTransfer.getData('todoId');
-        // Handle both string and number IDs for offline compatibility
-        const todoId = isNaN(parseInt(todoIdStr, 10)) ? todoIdStr : parseInt(todoIdStr, 10);
-        const originalTask = allTodos.find(t => t.id.toString() === todoIdStr);
-
-        if (todoId && originalTask && originalTask.status !== status) {
-            onUpdateTaskStatus(todoId, status);
-        }
-    };
-
+    user: User;
+}> = ({ title, todos, onUpdateTodo, personnel, user }) => {
     return (
-        <div 
-            className={`p-3 w-80 md:w-96 flex-shrink-0 flex flex-col transition-colors duration-300 ${isOver ? 'bg-sky-100/50 rounded-lg' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-        >
-            <h3 className="font-bold text-slate-800 text-xl mb-4 px-2 flex-shrink-0">{title} <span className="text-lg font-normal text-slate-500">({todos.length})</span></h3>
-            <div className="space-y-4 min-h-[50vh] overflow-y-auto flex-grow p-1">
-                {todos.map(todo => (
-                    <TaskCard 
-                        key={todo.id} 
-                        todo={todo}
-                        allTodos={allTodos}
-                        onSelect={() => onSelectTask(todo)}
-                        canManageTasks={canManageTasks}
-                        user={user}
-                        addToast={addToast}
-                        onReminderUpdate={onReminderUpdate}
-                        personnel={personnel}
-                    />
-                ))}
+        <div className="w-80 bg-slate-100 rounded-lg p-3 flex-shrink-0">
+            <h3 className="font-semibold text-slate-700 mb-4 px-1">{title} ({todos.length})</h3>
+            <div className="space-y-3 overflow-y-auto h-full">
+                {todos.map(todo => {
+                    const assignee = personnel.find(p => p.id === todo.assigneeId);
+                    return (
+                        <TaskCard 
+                            key={todo.id} 
+                            todo={todo} 
+                            onClick={() => console.log("view task", todo.id)} 
+                            assignee={assignee}
+                            user={user}
+                        />
+                    );
+                })}
             </div>
         </div>
     );
 };
 
-export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, allTodos, onUpdateTaskStatus, onSelectTask, onAddTask, canManageTasks, user, addToast, onReminderUpdate, personnel }) => {
-    const todoTasks = todos.filter(t => t.status === TodoStatus.TODO);
-    const inProgressTasks = todos.filter(t => t.status === TodoStatus.IN_PROGRESS);
-    const doneTasks = todos
-        .filter(t => t.status === TodoStatus.DONE)
-        .sort((a, b) => {
-            const dateA = a.completedAt ? new Date(a.completedAt).getTime() : 0;
-            const dateB = b.completedAt ? new Date(b.completedAt).getTime() : 0;
-            return dateB - dateA;
-        });
-    
+
+export const KanbanBoard: React.FC<KanbanBoardProps> = ({ todos, onUpdateTodo, personnel, user }) => {
+
+    const columns: { title: string, status: TodoStatus }[] = [
+        { title: 'To Do', status: TodoStatus.TODO },
+        { title: 'In Progress', status: TodoStatus.IN_PROGRESS },
+        { title: 'Done', status: TodoStatus.DONE },
+    ];
+
     return (
-        <div className="whiteboard-bg flex gap-6 overflow-x-auto pb-4">
-            <KanbanColumn 
-                title="To Do"
-                status={TodoStatus.TODO}
-                todos={todoTasks}
-                allTodos={allTodos}
-                onUpdateTaskStatus={onUpdateTaskStatus}
-                onSelectTask={onSelectTask}
-                onAddTask={onAddTask}
-                canManageTasks={canManageTasks}
-                user={user}
-                addToast={addToast}
-                onReminderUpdate={onReminderUpdate}
-                personnel={personnel}
-            />
-            <KanbanColumn 
-                title="In Progress"
-                status={TodoStatus.IN_PROGRESS}
-                todos={inProgressTasks}
-                allTodos={allTodos}
-                onUpdateTaskStatus={onUpdateTaskStatus}
-                onSelectTask={onSelectTask}
-                onAddTask={onAddTask}
-                canManageTasks={canManageTasks}
-                user={user}
-                addToast={addToast}
-                onReminderUpdate={onReminderUpdate}
-                personnel={personnel}
-            />
-            <KanbanColumn 
-                title="Done"
-                status={TodoStatus.DONE}
-                todos={doneTasks}
-                allTodos={allTodos}
-                onUpdateTaskStatus={onUpdateTaskStatus}
-                onSelectTask={onSelectTask}
-                onAddTask={onAddTask}
-                canManageTasks={canManageTasks}
-                user={user}
-                addToast={addToast}
-                onReminderUpdate={onReminderUpdate}
-                personnel={personnel}
-            />
+        <div className="flex gap-4 overflow-x-auto pb-4">
+            {columns.map(col => (
+                <KanbanColumn
+                    key={col.status}
+                    title={col.title}
+                    todos={todos.filter(t => t.status === col.status)}
+                    onUpdateTodo={onUpdateTodo}
+                    personnel={personnel}
+                    user={user}
+                />
+            ))}
         </div>
     );
 };

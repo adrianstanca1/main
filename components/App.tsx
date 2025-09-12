@@ -78,7 +78,8 @@ const App: React.FC = () => {
             const fetchPendingCount = async () => {
                 try {
                     let timesheets: Timesheet[];
-                    if (user.role === 'Company Admin') {
+                    // FIX: Changed string literal 'Company Admin' to use the Role enum for type safety.
+                    if (user.role === Role.ADMIN) {
                         timesheets = await api.getTimesheetsByCompany(user.companyId!, user.id);
                     } else { // PM
                         timesheets = await api.getTimesheetsForManager(user.id);
@@ -174,6 +175,7 @@ const App: React.FC = () => {
     };
 
     const renderView = () => {
+        if (!user) return null;
         if (selectedProject && activeView === 'projects') {
             return <ProjectDetailView project={selectedProject} user={user!} onBack={() => setSelectedProject(null)} addToast={addToast} isOnline={isOnline} onStartChat={handleStartChat} />;
         }

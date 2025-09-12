@@ -1,4 +1,7 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// FIX: Corrected import paths to be relative.
 import { User, Invoice, Quote, Client, Project, InvoiceStatus, QuoteStatus } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
@@ -25,6 +28,7 @@ export const InvoicesView: React.FC<InvoicesViewProps> = ({ user, addToast }) =>
     const fetchData = useCallback(async () => {
         setLoading(true);
         try {
+            if (!user.companyId) return;
             const [invoiceData, quoteData, clientData, projectData] = await Promise.all([
                 api.getInvoicesByCompany(user.companyId),
                 api.getQuotesByCompany(user.companyId),

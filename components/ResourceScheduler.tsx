@@ -1,7 +1,8 @@
+
+
 import React, { useState, useEffect, useMemo } from 'react';
-// FIX: Corrected import path
+// FIX: Corrected import paths to be relative.
 import { User, Project, Equipment, ResourceAssignment } from '../types';
-// FIX: Corrected import path
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 

@@ -1,5 +1,7 @@
+
+
 import React from 'react';
-// FIX: Corrected import path
+// FIX: Corrected import path to be relative.
 import { DocumentStatus, IncidentSeverity, IncidentStatus, EquipmentStatus, TimesheetStatus, InvoiceStatus, QuoteStatus, UserStatus } from '../../types';
 
 export const DocumentStatusBadge: React.FC<{ status: DocumentStatus }> = ({ status }) => {

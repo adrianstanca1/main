@@ -1,70 +1,63 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, Project, SafetyIncident } from '../types';
+import { User, Project, SafetyIncident, Permission } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
+import { hasPermission } from '../services/auth';
 
 interface SafetyAnalysisProps {
     user: User;
     addToast: (message: string, type: 'success' | 'error') => void;
-    onBack: () => void;
 }
 
-export const SafetyAnalysis: React.FC<SafetyAnalysisProps> = ({ user, addToast, onBack }) => {
+export const SafetyAnalysis: React.FC<SafetyAnalysisProps> = ({ user, addToast }) => {
     const [projects, setProjects] = useState<Project[]>([]);
-    const [selectedProjectId, setSelectedProjectId] = useState<string>('');
     const [incidents, setIncidents] = useState<SafetyIncident[]>([]);
+    const [selectedProjectId, setSelectedProjectId] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     const [report, setReport] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
 
-    const fetchProjects = useCallback(async () => {
-        if (user.role === 'Company Admin') {
-            const companyProjects = await api.getProjectsByCompany(user.companyId);
-            setProjects(companyProjects);
-        } else if (user.role === 'Project Manager') {
-            const managedProjects = await api.getProjectsByManager(user.id);
-            setProjects(managedProjects);
+    const fetchData = useCallback(async () => {
+        if (!user.companyId) return;
+        try {
+            const [projData, incidentData] = await Promise.all([
+                api.getProjectsByCompany(user.companyId),
+                api.getSafetyIncidentsByCompany(user.companyId)
+            ]);
+            setProjects(projData);
+            setIncidents(incidentData);
+            if (projData.length > 0) {
+                setSelectedProjectId(projData[0].id.toString());
+            }
+        } catch (error) {
+            addToast("Failed to load data for analysis.", 'error');
         }
-    }, [user.id, user.role, user.companyId]);
+    }, [user.companyId, addToast]);
 
     useEffect(() => {
-        fetchProjects();
-    }, [fetchProjects]);
-
-    useEffect(() => {
-        if (selectedProjectId) {
-            setReport(null);
-            setError(null);
-            api.getIncidentsByProject(parseInt(selectedProjectId, 10)).then(setIncidents);
-        } else {
-            setIncidents([]);
-        }
-    }, [selectedProjectId]);
+        fetchData();
+    }, [fetchData]);
 
     const handleGenerate = async () => {
         if (!selectedProjectId) {
-             addToast("Please select a project.", 'error');
+            addToast("Please select a project.", 'error');
             return;
         }
-         if (incidents.length === 0) {
-            addToast("This project has no safety incidents to analyze.", 'error');
+        const projectIncidents = incidents.filter(i => i.projectId.toString() === selectedProjectId);
+        if (projectIncidents.length === 0) {
+            addToast("No incidents recorded for this project to analyze.", 'error');
             return;
         }
 
         setIsLoading(true);
-        setError(null);
         setReport(null);
-
         try {
-            const result = await api.generateSafetyAnalysis(incidents, parseInt(selectedProjectId, 10), user.id);
+            const result = await api.generateSafetyAnalysis(projectIncidents, parseInt(selectedProjectId), user.id);
             setReport(result.report);
-            addToast("Safety analysis generated successfully!", 'success');
-        } catch (err) {
-            const errorMessage = "Failed to generate AI safety analysis.";
-            setError(errorMessage);
-            addToast(errorMessage, 'error');
-            console.error(err);
+            addToast("Safety analysis generated!", "success");
+        } catch (error) {
+            addToast("Failed to generate analysis.", "error");
         } finally {
             setIsLoading(false);
         }
@@ -73,46 +66,39 @@ export const SafetyAnalysis: React.FC<SafetyAnalysisProps> = ({ user, addToast, 
     return (
         <Card>
             <h3 className="text-xl font-semibold text-slate-700 mb-2">AI Safety Analysis</h3>
-            <p className="text-sm text-slate-500 mb-4">Analyze reported incidents for a project to identify trends and get actionable recommendations from AI.</p>
+            <p className="text-sm text-slate-500 mb-4">Let AI analyze incident reports to identify trends and recommend preventative actions.</p>
             
-            <div className="space-y-4 p-4 border rounded-lg bg-slate-50">
-                <div>
-                    <label htmlFor="project-select-safety" className="block text-sm font-medium text-gray-700 mb-1">Select Project</label>
+            <div className="flex gap-4 items-end p-4 border rounded-lg bg-slate-50">
+                <div className="flex-grow">
+                    <label htmlFor="project-select" className="block text-sm font-medium text-gray-700 mb-1">Project</label>
                     <select
-                        id="project-select-safety"
+                        id="project-select"
                         value={selectedProjectId}
-                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        onChange={e => setSelectedProjectId(e.target.value)}
                         className="w-full p-2 border border-gray-300 rounded-md"
                     >
-                        <option value="" disabled>-- Choose a project --</option>
                         {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                 </div>
-
-                <Button onClick={handleGenerate} isLoading={isLoading} disabled={!selectedProjectId}>
-                    Generate Safety Analysis
-                </Button>
-                {selectedProjectId && incidents.length === 0 && !isLoading && (
-                    <p className="text-sm text-slate-500 mt-2">No safety incidents have been reported for this project.</p>
-                )}
+                <Button onClick={handleGenerate} isLoading={isLoading}>Analyze Incidents</Button>
             </div>
             
-            {isLoading && (
-                <div className="mt-6 text-center">
-                    <p className="text-slate-600 animate-pulse">AI is analyzing safety data... this may take a moment.</p>
-                </div>
-            )}
-            
-            {error && <p className="mt-6 text-red-600 bg-red-50 p-3 rounded-md">{error}</p>}
-            
-            {report && (
-                <div className="mt-6 pt-6 border-t">
-                    <h4 className="text-lg font-semibold text-slate-800 mb-4">AI Safety Analysis Report</h4>
-                    <div className="bg-slate-50 p-4 rounded-md text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
-                        {report}
+            <div className="mt-6">
+                {isLoading && (
+                     <div className="text-center py-10">
+                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-800"></div>
+                        <p className="mt-2 text-slate-600">AI is analyzing safety data...</p>
                     </div>
-                </div>
-            )}
+                )}
+                {report && (
+                    <div>
+                        <h4 className="font-semibold text-lg mb-2">Generated Analysis:</h4>
+                        <div className="p-4 border rounded-md bg-white whitespace-pre-wrap font-mono text-sm">
+                            {report}
+                        </div>
+                    </div>
+                )}
+            </div>
         </Card>
     );
 };

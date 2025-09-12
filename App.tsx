@@ -1,11 +1,12 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+// FIX: Corrected import paths to be relative.
 import { Login } from './components/Login';
-// FIX: Corrected import path
 import { User, View, Project, Timesheet, TimesheetStatus, Permission, SafetyIncident, IncidentStatus, Role } from './types';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
 import { Dashboard } from './components/Dashboard';
-// FIX: Corrected import path
 import { ProjectDetailView } from './components/ProjectDetailView';
 import { DocumentsView } from './components/DocumentsView';
 import { SafetyView } from './components/SafetyView';
@@ -26,7 +27,6 @@ import { MyDayView } from './components/MyDayView';
 import { useCommandPalette } from './hooks/useCommandPalette';
 import { useOfflineSync } from './hooks/useOfflineSync';
 import { useReminderService } from './hooks/useReminderService';
-// FIX: Corrected import path
 import { api } from './services/mockApi';
 import { hasPermission } from './services/auth';
 import { ProjectsMapView } from './components/ProjectsMapView';
@@ -60,11 +60,7 @@ const App: React.FC = () => {
     }, [theme]);
 
     const addToastCallback = useCallback((message: string, type: 'success' | 'error' = 'success') => {
-        const id = Date.now();
-        setToasts(prev => [...prev, { id, message, type }]);
-        setTimeout(() => {
-            setToasts(currentToasts => currentToasts.filter(t => t.id !== id));
-        }, 4000);
+        addToast(message, type);
     }, []);
 
     useEffect(() => {
@@ -81,15 +77,15 @@ const App: React.FC = () => {
     }, [user, addToastCallback]);
 
     useEffect(() => {
-        if (!user || !user.companyId) return;
-        const intervals: number[] = [];
+        if (!user) return;
+        const intervals: NodeJS.Timeout[] = [];
 
         // Fetch pending timesheets for managers/admins
         if (hasPermission(user, Permission.MANAGE_TIMESHEETS)) {
             const fetchPendingCount = async () => {
                 try {
                     let timesheets: Timesheet[];
-                    if (user.role === 'Company Admin') {
+                    if (user.role === Role.ADMIN) {
                         timesheets = await api.getTimesheetsByCompany(user.companyId!, user.id);
                     } else { // PM
                         timesheets = await api.getTimesheetsForManager(user.id);
@@ -101,7 +97,7 @@ const App: React.FC = () => {
                 }
             };
             fetchPendingCount();
-            intervals.push(window.setInterval(fetchPendingCount, 60000));
+            intervals.push(setInterval(fetchPendingCount, 60000));
         } else {
             setPendingTimesheetCount(0);
         }
@@ -118,7 +114,7 @@ const App: React.FC = () => {
                 }
            }
            fetchOpenIncidents();
-           intervals.push(window.setInterval(fetchOpenIncidents, 60000));
+           intervals.push(setInterval(fetchOpenIncidents, 60000));
         } else {
             setOpenIncidentCount(0);
         }
@@ -140,7 +136,7 @@ const App: React.FC = () => {
                 }
             };
             fetchUnreadCount();
-            intervals.push(window.setInterval(fetchUnreadCount, 15000)); // Check for new messages more frequently
+            intervals.push(setInterval(fetchUnreadCount, 15000)); // Check for new messages more frequently
         } else {
             setUnreadMessageCount(0);
         }
@@ -172,8 +168,6 @@ const App: React.FC = () => {
 
     const handleLogout = () => {
         setUser(null);
-        setActiveView('dashboard');
-        setSelectedProject(null);
     };
 
     const handleSelectProject = (project: Project) => {
@@ -185,58 +179,50 @@ const App: React.FC = () => {
         setChatRecipient(recipient);
         setActiveView('chat');
     };
-    
-    const handleSetView = (view: View) => {
-        if (view !== 'projects') {
-            setSelectedProject(null);
-        }
-        setActiveView(view);
-    }
 
     const renderView = () => {
         if (!user) return null;
-        
         if (selectedProject && activeView === 'projects') {
-            return <ProjectDetailView project={selectedProject} user={user} onBack={() => setSelectedProject(null)} addToast={addToast} isOnline={isOnline} onStartChat={handleStartChat} />;
+            return <ProjectDetailView project={selectedProject} user={user!} onBack={() => setSelectedProject(null)} addToast={addToast} isOnline={isOnline} onStartChat={handleStartChat} />;
         }
 
         switch (activeView) {
             case 'dashboard':
-                return <Dashboard user={user} addToast={addToast} activeView={activeView} setActiveView={handleSetView} onSelectProject={handleSelectProject} />;
+                return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
             case 'my-day':
-                return <MyDayView user={user} addToast={addToast} setActiveView={handleSetView} />;
+                return <MyDayView user={user!} addToast={addToast} setActiveView={setActiveView} />;
             case 'principal-dashboard':
-                return <PrincipalAdminDashboard user={user} addToast={addToast} />;
+                return <PrincipalAdminDashboard user={user!} addToast={addToast} />;
             case 'projects':
-                return <ProjectsView user={user} addToast={addToast} onSelectProject={handleSelectProject} />;
+                return <ProjectsView user={user!} addToast={addToast} onSelectProject={handleSelectProject} />;
             case 'documents':
-                return <DocumentsView user={user} addToast={addToast} isOnline={isOnline} />;
+                return <DocumentsView user={user!} addToast={addToast} isOnline={isOnline} />;
             case 'safety':
-                 return <SafetyView user={user} addToast={addToast} />;
+                 return <SafetyView user={user!} addToast={addToast} />;
             case 'timesheets':
-                return <TimesheetsView user={user} addToast={addToast} />;
+                return <TimesheetsView user={user!} addToast={addToast} />;
             case 'time':
-                return <TimeTrackingView user={user} addToast={addToast} setActiveView={handleSetView} />;
+                return <TimeTrackingView user={user!} addToast={addToast} setActiveView={setActiveView} />;
             case 'settings':
-                return <SettingsView user={user} addToast={addToast} theme={theme} setTheme={setTheme} />;
+                return <SettingsView user={user!} addToast={addToast} theme={theme} setTheme={setTheme} />;
             case 'users':
-                return <TeamView user={user} addToast={addToast} onStartChat={handleStartChat} />;
+                return <TeamView user={user!} addToast={addToast} onStartChat={handleStartChat} />;
             case 'chat':
-                return <ChatView user={user} addToast={addToast} initialRecipient={chatRecipient} />;
+                return <ChatView user={user!} addToast={addToast} initialRecipient={chatRecipient} />;
             case 'tools':
-                return <ToolsView user={user} addToast={addToast} setActiveView={handleSetView} />;
+                return <ToolsView user={user!} addToast={addToast} setActiveView={setActiveView} />;
             case 'financials':
-                 return <FinancialsView user={user} addToast={addToast} />;
+                 return <FinancialsView user={user!} addToast={addToast} />;
             case 'equipment':
-                return <EquipmentView user={user} addToast={addToast} />;
+                return <EquipmentView user={user!} addToast={addToast} />;
             case 'templates':
-                return <TemplatesView user={user} addToast={addToast} />;
+                return <TemplatesView user={user!} addToast={addToast} />;
             case 'all-tasks':
-                return <AllTasksView user={user} addToast={addToast} isOnline={isOnline} />;
+                return <AllTasksView user={user!} addToast={addToast} isOnline={isOnline} />;
             case 'map':
-                return <ProjectsMapView user={user} addToast={addToast} />;
+                return <ProjectsMapView user={user!} addToast={addToast} />;
             default:
-                return <Dashboard user={user} addToast={addToast} activeView={activeView} setActiveView={handleSetView} onSelectProject={handleSelectProject} />;
+                return <Dashboard user={user!} addToast={addToast} activeView={activeView} setActiveView={setActiveView} onSelectProject={handleSelectProject} />;
         }
     };
 
@@ -249,7 +235,7 @@ const App: React.FC = () => {
             <Sidebar 
                 user={user} 
                 activeView={activeView} 
-                setActiveView={handleSetView} 
+                setActiveView={setActiveView} 
                 onLogout={handleLogout} 
                 pendingTimesheetCount={pendingTimesheetCount}
                 openIncidentCount={openIncidentCount}
@@ -270,7 +256,7 @@ const App: React.FC = () => {
                 <CommandPalette
                     user={user}
                     onClose={() => setIsCommandPaletteOpen(false)}
-                    setActiveView={handleSetView}
+                    setActiveView={setActiveView}
                 />
             )}
             {isAiSearchOpen && (
