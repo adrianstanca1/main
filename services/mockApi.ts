@@ -1,3 +1,8 @@
+  // Financials
+  deleteInvoice: (invoiceId: number): Promise<{ success: true }> => {
+    db.invoices = db.invoices.filter(i => i.id !== invoiceId);
+    return simulateNetwork({ success: true });
+  },
 // full contents of services/mockApi.ts
 
 import {
@@ -200,6 +205,10 @@ export const api = {
       { category: 'Equipment', amount: 80000 },
       { category: 'Overhead', amount: 50000 },
   ]),
+  deleteInvoice: (invoiceId: number): Promise<{ success: true }> => {
+    db.invoices = db.invoices.filter(i => i.id !== invoiceId);
+    return simulateNetwork({ success: true });
+  },
 
   // Templates
   getProjectTemplates: (companyId: number): Promise<ProjectTemplate[]> => simulateNetwork(db.projectTemplates.filter(t => t.companyId === companyId)),

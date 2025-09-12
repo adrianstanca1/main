@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { saveAs } from 'file-saver';
 import { User, FinancialKPIs, MonthlyFinancials, CostBreakdown, Invoice, Quote, Client, Project, InvoiceStatus, QuoteStatus } from '../types';
 import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { InvoiceStatusBadge, QuoteStatusBadge } from './ui/StatusBadge';
+import barChartStyles from './ui/BarChart.module.css';
 
 interface FinancialsViewProps {
     user: User;
@@ -20,11 +22,14 @@ const BarChart: React.FC<{ data: { label: string, value: number }[], barColor: s
     const maxValue = Math.max(...data.map(d => d.value));
     return (
         <div className="w-full h-64 flex items-end justify-around p-4 border rounded-lg bg-slate-50">
-            {data.map((item, index) => (
-                <div key={index} className="flex flex-col items-center justify-end h-full w-full">
+            {data.map((item) => (
+                <div key={item.label} className="flex flex-col items-center justify-end h-full w-full">
                     <div
-                        className={`w-3/4 rounded-t-md ${barColor}`}
-                        style={{ height: `${(item.value / maxValue) * 100}%` }}
+                        className={`w-3/4 rounded-t-md ${barChartStyles.bar} ${barColor}`}
+                        style={{
+                            // Only set the CSS variable, not height directly
+                            ['--bar-height' as any]: `${(item.value / maxValue) * 100}%`
+                        }}
                         title={formatCurrency(item.value)}
                     ></div>
                     <span className="text-xs mt-2 text-slate-600">{item.label}</span>
@@ -42,6 +47,7 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const [clients, setClients] = useState<Client[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
+    const [search, setSearch] = useState('');
 
     const fetchData = useCallback(async () => {
         if (!user.companyId) return;
@@ -75,55 +81,127 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const findClientName = (id: number) => clients.find(c => c.id === id)?.name || 'Unknown Client';
     const findProjectName = (id: number) => projects.find(p => p.id === id)?.name || 'Unknown Project';
 
+    // Filter invoices by search
+    const filteredInvoices = invoices.filter(inv => {
+        const client = findClientName(inv.clientId).toLowerCase();
+        const project = findProjectName(inv.projectId).toLowerCase();
+        return (
+            client.includes(search.toLowerCase()) ||
+            project.includes(search.toLowerCase()) ||
+            inv.amountDue.toString().includes(search)
+        );
+    });
+
     if (loading) return <Card><p>Loading financials...</p></Card>
+
+    // Export invoices to CSV
+    const exportCSV = () => {
+        const header = ['Client', 'Project', 'Status', 'Amount Due'];
+        const rows = filteredInvoices.map(inv => [
+            findClientName(inv.clientId),
+            findProjectName(inv.projectId),
+            inv.status,
+            inv.amountDue
+        ]);
+        const csv = [header, ...rows].map(r => r.join(',')).join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        saveAs(blob, 'invoices.csv');
+    };
+
+    // Invoice actions (view, edit, delete)
+    const handleView = (invoice: Invoice) => {
+        addToast(`Viewing invoice #${invoice.id} for ${findClientName(invoice.clientId)}`, 'success');
+    };
+    const handleEdit = (invoice: Invoice) => {
+        addToast(`Edit functionality for invoice #${invoice.id} coming soon`, 'success');
+    };
+    const handleDelete = async (invoice: Invoice) => {
+        if (!window.confirm('Delete this invoice?')) return;
+        try {
+            await api.deleteInvoice(invoice.id);
+            setInvoices(invoices.filter(i => i.id !== invoice.id));
+            addToast('Invoice deleted', 'success');
+        } catch {
+            addToast('Failed to delete invoice', 'error');
+        }
+    };
 
     return (
         <div className="space-y-6">
             <h2 className="text-3xl font-bold text-slate-800">Financials</h2>
-            
+
             {kpis && <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <Card><p className="text-sm text-slate-500">Profitability</p><p className="text-3xl font-bold">{kpis.profitability}%</p></Card>
                 <Card><p className="text-sm text-slate-500">Project Margin</p><p className="text-3xl font-bold">{kpis.projectMargin}%</p></Card>
                 <Card><p className="text-sm text-slate-500">Cash Flow</p><p className="text-3xl font-bold">{formatCurrency(kpis.cashFlow, kpis.currency)}</p></Card>
             </div>}
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                     <h3 className="font-semibold mb-4">Monthly Performance</h3>
                     <BarChart data={monthly.map(m => ({ label: m.month, value: m.profit }))} barColor="bg-green-500" />
                 </Card>
-                 <Card>
+                <Card>
                     <h3 className="font-semibold mb-4">Cost Breakdown</h3>
                     <BarChart data={costs.map(c => ({ label: c.category, value: c.amount }))} barColor="bg-sky-500" />
                 </Card>
             </div>
 
             <Card>
-                <div className="flex justify-between items-center mb-4">
-                     <h3 className="font-semibold text-lg">Invoices</h3>
-                     <Button>Create Invoice</Button>
+                <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-4 gap-2">
+                    <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg">Invoices</h3>
+                        <input
+                            type="text"
+                            placeholder="Search invoices..."
+                            className="border rounded px-2 py-1 text-sm"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex gap-2">
+                        <Button onClick={exportCSV}>Export CSV</Button>
+                        <Button>Create Invoice</Button>
+                    </div>
                 </div>
-                 <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-slate-50">
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Client</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Project</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase">Status</th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Amount Due</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {invoices.map(invoice => (
-                            <tr key={invoice.id} className="hover:bg-slate-50">
-                                <td className="px-6 py-4 text-sm text-slate-600">{findClientName(invoice.clientId)}</td>
-                                <td className="px-6 py-4 text-sm text-slate-600">{findProjectName(invoice.projectId)}</td>
-                                <td className="px-6 py-4 text-sm"><InvoiceStatusBadge status={invoice.status} /></td>
-                                <td className="px-6 py-4 text-sm text-right font-semibold text-slate-800">{formatCurrency(invoice.amountDue, 'GBP')}</td>
+                        {filteredInvoices.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                                    No invoices found{search ? ` matching "${search}"` : ''}
+                                </td>
                             </tr>
-                        ))}
+                        ) : (
+                            filteredInvoices.map(invoice => (
+                                <tr key={invoice.id} className="hover:bg-slate-50">
+                                    <td className="px-6 py-4 text-sm text-slate-600">{findClientName(invoice.clientId)}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">{findProjectName(invoice.projectId)}</td>
+                                    <td className="px-6 py-4 text-sm"><InvoiceStatusBadge status={invoice.status} /></td>
+                                    <td className="px-6 py-4 text-sm text-right font-semibold text-slate-800">{formatCurrency(invoice.amountDue, 'GBP')}</td>
+                                    <td className="px-6 py-4 text-sm text-right">
+                                        <div className="flex gap-2 justify-end">
+                                            <Button onClick={() => handleView(invoice)} size="sm">View</Button>
+                                            <Button onClick={() => handleEdit(invoice)} size="sm" variant="secondary">Edit</Button>
+                                            <Button onClick={() => handleDelete(invoice)} size="sm" variant="danger">Delete</Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
+                {/* Invoice view/edit modals would go here */}
             </Card>
         </div>
-    )
+    );
 }

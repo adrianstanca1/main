@@ -1,0 +1,4 @@
+.bar {
+  height: var(--bar-height, 100%);
+  transition: height 0.3s;
+}
