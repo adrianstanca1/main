@@ -1,3 +1,22 @@
+// Financials types
+export interface FinancialKPIs {
+  profitability: number;
+  projectMargin: number;
+  cashFlow: number;
+  currency: string;
+}
+
+export interface MonthlyFinancials {
+  month: string;
+  revenue: number;
+  costs: number;
+  profit: number;
+}
+
+export interface CostBreakdown {
+  category: string;
+  amount: number;
+}
 // full contents of types.ts
 
 export type View =

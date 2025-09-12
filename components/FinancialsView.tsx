@@ -21,10 +21,14 @@ const BarChart: React.FC<{ data: { label: string, value: number }[], barColor: s
     return (
         <div className="w-full h-64 flex items-end justify-around p-4 border rounded-lg bg-slate-50">
             {data.map((item, index) => (
-                <div key={index} className="flex flex-col items-center justify-end h-full w-full">
+                <div key={item.label} className="flex flex-col items-center justify-end h-full w-full">
                     <div
                         className={`w-3/4 rounded-t-md ${barColor}`}
-                        style={{ height: `${(item.value / maxValue) * 100}%` }}
+                        style={{
+                            // Use blockSize for compatibility, fallback to height
+                            blockSize: `${(item.value / maxValue) * 100}%`,
+                            height: `${(item.value / maxValue) * 100}%`
+                        }}
                         title={formatCurrency(item.value)}
                     ></div>
                     <span className="text-xs mt-2 text-slate-600">{item.label}</span>
