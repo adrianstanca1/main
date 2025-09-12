@@ -5,6 +5,7 @@ import { api } from '../services/mockApi';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { InvoiceStatusBadge, QuoteStatusBadge } from './ui/StatusBadge';
+import barChartStyles from './ui/BarChart.module.css';
 
 interface FinancialsViewProps {
     user: User;
@@ -20,14 +21,13 @@ const BarChart: React.FC<{ data: { label: string, value: number }[], barColor: s
     const maxValue = Math.max(...data.map(d => d.value));
     return (
         <div className="w-full h-64 flex items-end justify-around p-4 border rounded-lg bg-slate-50">
-            {data.map((item, index) => (
+            {data.map((item) => (
                 <div key={item.label} className="flex flex-col items-center justify-end h-full w-full">
                     <div
-                        className={`w-3/4 rounded-t-md ${barColor}`}
+                        className={`w-3/4 rounded-t-md ${barChartStyles.bar} ${barColor}`}
                         style={{
-                            // Use blockSize for compatibility, fallback to height
-                            blockSize: `${(item.value / maxValue) * 100}%`,
-                            height: `${(item.value / maxValue) * 100}%`
+                            // Only set the CSS variable, not height directly
+                            ['--bar-height' as any]: `${(item.value / maxValue) * 100}%`
                         }}
                         title={formatCurrency(item.value)}
                     ></div>
