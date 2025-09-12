@@ -318,6 +318,28 @@ export interface Quote {
     total: number;
 }
 
+export interface FinancialKPIs {
+    totalRevenue: number;
+    totalExpenses: number;
+    netProfit: number;
+    profitMargin: number;
+    outstandingInvoices: number;
+    averageProjectValue: number;
+}
+
+export interface MonthlyFinancials {
+    month: string;
+    revenue: number;
+    expenses: number;
+    profit: number;
+}
+
+export interface CostBreakdown {
+    category: string;
+    amount: number;
+    percentage: number;
+}
+
 
 export interface ProjectTemplate {
     id: number;

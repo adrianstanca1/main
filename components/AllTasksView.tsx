@@ -274,7 +274,7 @@ export const AllTasksView: React.FC<AllTasksViewProps> = ({ user, addToast, isOn
         addToast(`Applying updates to ${selectedTasks.size} tasks...`, 'success');
 
         const updatePromises = Array.from(selectedTasks).map(taskId => 
-            api.updateTodo(taskId, updates, user.id)
+            api.updateTodo(taskId as number | string, updates, user.id)
         );
 
         try {

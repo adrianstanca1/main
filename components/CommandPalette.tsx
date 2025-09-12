@@ -1,6 +1,6 @@
 
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 // FIX: Corrected import paths to be relative.
 import { User, View, Project, Role } from '../types';
 import { api } from '../services/mockApi';
