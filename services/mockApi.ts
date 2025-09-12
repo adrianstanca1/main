@@ -1,3 +1,8 @@
+  // Financials
+  deleteInvoice: (invoiceId: number): Promise<{ success: true }> => {
+    db.invoices = db.invoices.filter(i => i.id !== invoiceId);
+    return simulateNetwork({ success: true });
+  },
 // full contents of services/mockApi.ts
 
 import {
