@@ -1,9 +1,9 @@
 // full contents of services/mockApi.ts
 
 import {
-  User, Project, Todo, Document, SafetyIncident, Timesheet, Equipment,
+  User, Project, Todo, Document, SafetyIncident, Timesheet, Equipment, EquipmentStatus,
   Company, CompanySettings, Permission, Role, Conversation, ChatMessage,
-  Client, Invoice, Quote, ProjectTemplate, ResourceAssignment, AISearchResult, AuditLog,
+  Client, Invoice, Quote, ProjectTemplate, ProjectAssignment, ResourceAssignment, AISearchResult, AuditLog,
   FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus
 } from '../types';
 import { db } from './mockData';
@@ -30,7 +30,8 @@ export const api = {
   getCompanySettings: (companyId: number): Promise<CompanySettings> => simulateNetwork(db.companySettings.find(cs => cs.companyId === companyId)!),
   updateCompanySettings: (companyId: number, settings: CompanySettings, actorId: number): Promise<CompanySettings> => {
     const index = db.companySettings.findIndex(cs => cs.companyId === companyId);
-    db.companySettings[index] = settings;
+    const updatedSettings = { ...settings, companyId };
+    db.companySettings[index] = updatedSettings;
     return simulateNetwork(settings);
   },
 
@@ -127,14 +128,14 @@ export const api = {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].projectId = projectId;
-      db.equipment[index].status = 'In Use';
+      db.equipment[index].status = EquipmentStatus.IN_USE;
       return simulateNetwork(db.equipment[index]);
   },
   unassignEquipmentFromProject: (equipmentId: number, actorId: number): Promise<Equipment> => {
       const index = db.equipment.findIndex(e => e.id === equipmentId);
       if (index === -1) throw new Error("Equipment not found");
       db.equipment[index].projectId = null;
-      db.equipment[index].status = 'Available';
+      db.equipment[index].status = EquipmentStatus.AVAILABLE;
       return simulateNetwork(db.equipment[index]);
   },
   updateEquipmentStatus: (equipmentId: number, status: EquipmentStatus, actorId: number): Promise<Equipment> => {
@@ -191,14 +192,14 @@ export const api = {
   getFinancialKPIsForCompany: (companyId: number): Promise<FinancialKPIs> => simulateNetwork({ profitability: 12.5, projectMargin: 22.1, cashFlow: 125000, currency: 'GBP' }),
   getMonthlyFinancials: (companyId: number): Promise<MonthlyFinancials[]> => {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-      return simulateNetwork(months.map(m => ({ month: m, revenue: 100000 + Math.random() * 50000, costs: 80000 + Math.random() * 30000, profit: 20000 + Math.random() * 20000 })));
+      return simulateNetwork(months.map(m => ({ month: m, revenue: 100000 + Math.random() * 50000, expenses: 80000 + Math.random() * 30000, profit: 20000 + Math.random() * 20000 })));
   },
   getCostBreakdown: (companyId: number): Promise<CostBreakdown[]> => simulateNetwork([
-      { category: 'Labor', amount: 150000 },
-      { category: 'Materials', amount: 250000 },
-      { category: 'Subcontractors', amount: 120000 },
-      { category: 'Equipment', amount: 80000 },
-      { category: 'Overhead', amount: 50000 },
+      { category: 'Labor', amount: 150000, percentage: 22.7 },
+      { category: 'Materials', amount: 250000, percentage: 37.9 },
+      { category: 'Subcontractors', amount: 120000, percentage: 18.2 },
+      { category: 'Equipment', amount: 80000, percentage: 12.1 },
+      { category: 'Overhead', amount: 50000, percentage: 7.6 },
   ]),
 
   // Templates

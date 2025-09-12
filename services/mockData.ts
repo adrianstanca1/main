@@ -63,7 +63,7 @@ let equipment: Equipment[] = [
     { id: 4, companyId: 1, name: 'Scaffolding Set A', type: 'Support', status: EquipmentStatus.MAINTENANCE, projectId: null },
 ];
 
-let companySettings: { companyId: number }[] & CompanySettings[] = [
+let companySettings: (CompanySettings & { companyId: number })[] = [
     { companyId: 1, theme: 'light', notificationPreferences: { projectUpdates: true, timeReminders: true, photoRequirements: false }, locationPreferences: { backgroundTracking: false, gpsAccuracy: 'standard' } },
     { companyId: 2, theme: 'dark', notificationPreferences: { projectUpdates: true, timeReminders: false, photoRequirements: true }, locationPreferences: { backgroundTracking: true, gpsAccuracy: 'high' } }
 ];

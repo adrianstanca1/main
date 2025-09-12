@@ -374,6 +374,26 @@ export enum Permission {
     SEND_DIRECT_MESSAGE = 'SEND_DIRECT_MESSAGE',
 }
 
+export interface FinancialKPIs {
+    profitability: number;
+    projectMargin: number;
+    cashFlow: number;
+    currency: string;
+}
+
+export interface MonthlyFinancials {
+    month: string;
+    revenue: number;
+    expenses: number;
+    profit: number;
+}
+
+export interface CostBreakdown {
+    category: string;
+    amount: number;
+    percentage: number;
+}
+
 export const RolePermissions: Record<Role, Set<Permission>> = {
     [Role.PRINCIPAL_ADMIN]: new Set(Object.values(Permission)), // Has all permissions implicitly
     [Role.ADMIN]: new Set([
