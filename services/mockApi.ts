@@ -1,7 +1,7 @@
 // full contents of services/mockApi.ts
 
 import {
-  User, Project, Todo, Document, SafetyIncident, Timesheet, Equipment, EquipmentStatus,
+  User, Project, Todo, TodoStatus, Document, SafetyIncident, Timesheet, Equipment, EquipmentStatus,
   Company, CompanySettings, Permission, Role, Conversation, ChatMessage,
   Client, Invoice, Quote, ProjectTemplate, ResourceAssignment, AISearchResult, AuditLog,
   FinancialKPIs, MonthlyFinancials, CostBreakdown, Grant, RiskAnalysis, BidPackage, TimesheetStatus, ProjectAssignment
@@ -73,7 +73,7 @@ export const api = {
                     id: `${newProject.id}-${Date.now()}-${Math.random()}`,
                     projectId: newProject.id,
                     creatorId: actorId,
-                    status: TimesheetStatus.PENDING as any, //TODO: fix type
+                    status: TodoStatus.TODO,
                 } as Todo;
                 db.todos.push(newTodo);
             });

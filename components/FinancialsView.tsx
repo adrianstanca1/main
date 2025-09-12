@@ -82,9 +82,9 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
             <h2 className="text-3xl font-bold text-slate-800">Financials</h2>
             
             {kpis && <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card><p className="text-sm text-slate-500">Profitability</p><p className="text-3xl font-bold">{kpis.profitability}%</p></Card>
-                <Card><p className="text-sm text-slate-500">Project Margin</p><p className="text-3xl font-bold">{kpis.projectMargin}%</p></Card>
-                <Card><p className="text-sm text-slate-500">Cash Flow</p><p className="text-3xl font-bold">{formatCurrency(kpis.cashFlow, kpis.currency)}</p></Card>
+                <Card><p className="text-sm text-slate-500">Profit Margin</p><p className="text-3xl font-bold">{kpis.profitMargin}%</p></Card>
+                <Card><p className="text-sm text-slate-500">Net Profit</p><p className="text-3xl font-bold">£{kpis.netProfit.toLocaleString()}</p></Card>
+                <Card><p className="text-sm text-slate-500">Total Revenue</p><p className="text-3xl font-bold">£{kpis.totalRevenue.toLocaleString()}</p></Card>
             </div>}
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

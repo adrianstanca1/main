@@ -12,6 +12,18 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              vendor: ['react', 'react-dom'],
+              maps: ['leaflet', 'react-leaflet', 'use-supercluster'],
+              ai: ['@google/genai']
+            }
+          }
+        },
+        chunkSizeWarningLimit: 600
       }
     };
 });
