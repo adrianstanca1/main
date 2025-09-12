@@ -44,8 +44,6 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
-    const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
-    const [showEditModal, setShowEditModal] = useState(false);
 
     const fetchData = useCallback(async () => {
         if (!user.companyId) return;
@@ -107,10 +105,11 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
     };
 
     // Invoice actions (view, edit, delete)
-    const handleView = (invoice: Invoice) => setSelectedInvoice(invoice);
+    const handleView = (invoice: Invoice) => {
+        addToast(`Viewing invoice #${invoice.id} for ${findClientName(invoice.clientId)}`, 'success');
+    };
     const handleEdit = (invoice: Invoice) => {
-        setSelectedInvoice(invoice);
-        setShowEditModal(true);
+        addToast(`Edit functionality for invoice #${invoice.id} coming soon`, 'success');
     };
     const handleDelete = async (invoice: Invoice) => {
         if (!window.confirm('Delete this invoice?')) return;
@@ -172,19 +171,29 @@ export const FinancialsView: React.FC<FinancialsViewProps> = ({ user, addToast }
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {filteredInvoices.map(invoice => (
-                            <tr key={invoice.id} className="hover:bg-slate-50">
-                                <td className="px-6 py-4 text-sm text-slate-600">{findClientName(invoice.clientId)}</td>
-                                <td className="px-6 py-4 text-sm text-slate-600">{findProjectName(invoice.projectId)}</td>
-                                <td className="px-6 py-4 text-sm"><InvoiceStatusBadge status={invoice.status} /></td>
-                                <td className="px-6 py-4 text-sm text-right font-semibold text-slate-800">{formatCurrency(invoice.amountDue, 'GBP')}</td>
-                                <td className="px-6 py-4 text-sm text-right">
-                                    <Button onClick={() => handleView(invoice)} size="sm">View</Button>
-                                    <Button onClick={() => handleEdit(invoice)} size="sm" variant="secondary">Edit</Button>
-                                    <Button onClick={() => handleDelete(invoice)} size="sm" variant="danger">Delete</Button>
+                        {filteredInvoices.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="px-6 py-8 text-center text-slate-500">
+                                    No invoices found{search ? ` matching "${search}"` : ''}
                                 </td>
                             </tr>
-                        ))}
+                        ) : (
+                            filteredInvoices.map(invoice => (
+                                <tr key={invoice.id} className="hover:bg-slate-50">
+                                    <td className="px-6 py-4 text-sm text-slate-600">{findClientName(invoice.clientId)}</td>
+                                    <td className="px-6 py-4 text-sm text-slate-600">{findProjectName(invoice.projectId)}</td>
+                                    <td className="px-6 py-4 text-sm"><InvoiceStatusBadge status={invoice.status} /></td>
+                                    <td className="px-6 py-4 text-sm text-right font-semibold text-slate-800">{formatCurrency(invoice.amountDue, 'GBP')}</td>
+                                    <td className="px-6 py-4 text-sm text-right">
+                                        <div className="flex gap-2 justify-end">
+                                            <Button onClick={() => handleView(invoice)} size="sm">View</Button>
+                                            <Button onClick={() => handleEdit(invoice)} size="sm" variant="secondary">Edit</Button>
+                                            <Button onClick={() => handleDelete(invoice)} size="sm" variant="danger">Delete</Button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
                 {/* Invoice view/edit modals would go here */}
